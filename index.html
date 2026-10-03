@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
 <title>EJ Inspiration | Gestión</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -12,7 +12,7 @@
 .btn{border:0;background:var(--brown);color:white;border-radius:9px;padding:11px 15px;font-weight:700;cursor:pointer}.btn.alt{background:var(--cream);color:var(--brown)}.btn.full{width:100%}
 .app{display:none;grid-template-columns:230px 1fr;min-height:100vh}aside{background:#fbf7f0;border-right:1px solid var(--line);padding:24px 15px}nav button{width:100%;border:0;background:none;text-align:left;padding:12px;border-radius:9px;color:#6e6054;font-weight:700;cursor:pointer}nav button:hover,nav button.active{background:var(--cream);color:var(--brown)}
 main{padding:26px 30px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;gap:10px}h1,h2{font-family:Georgia,serif;margin:0}.who{font-size:13px;color:var(--muted)}.panel,.card{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:18px;box-shadow:0 3px 10px #5d43220a}.panel{margin-bottom:18px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}.metric{font-size:25px;font-weight:800;margin-top:8px}.head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:11px 8px;border-bottom:1px solid var(--line);text-align:left}th{font-size:11px;color:var(--muted);text-transform:uppercase}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.hidden{display:none}.badge{padding:5px 8px;border-radius:999px;background:var(--ok);font-size:11px;font-weight:700}.badge.low{background:var(--warn)}.badge.out{background:var(--bad)}.msg{font-size:13px;margin-top:12px;color:#8a4038}
-@media(max-width:800px){.app{display:none;grid-template-columns:1fr}aside{position:static}nav{display:flex;overflow:auto}nav button{min-width:max-content}main{padding:18px 14px}.cards{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}}
+@media(max-width:800px){html,body{width:100%;max-width:100%;overflow-x:hidden;-webkit-text-size-adjust:100%}.login{padding:14px;min-height:100dvh}.loginbox{padding:22px 18px}.app{display:none;grid-template-columns:minmax(0,1fr);width:100%}aside{position:sticky;top:0;z-index:20;width:100%;padding:8px 10px;border-right:0;border-bottom:1px solid var(--line);background:#fbf7f0}aside>div:first-child{display:none}nav{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}nav::-webkit-scrollbar{display:none}nav button{width:auto;min-width:max-content;padding:10px 12px;font-size:13px;white-space:nowrap;background:#fff;border:1px solid var(--line)}main{min-width:0;width:100%;padding:14px 12px 28px}.top{align-items:flex-start;margin-bottom:14px}.top h1{font-size:24px}.who{font-size:11px;max-width:145px}.panel,.card{padding:14px;max-width:100%;overflow:hidden}.head{align-items:flex-start;flex-wrap:wrap}.cards{grid-template-columns:1fr 1fr;gap:9px}.metric{font-size:21px}.grid{grid-template-columns:1fr;gap:8px}input,select,textarea{font-size:16px!important;max-width:100%}.btn{min-height:42px}table{min-width:680px;font-size:12px}.panel:has(table),.card:has(table){overflow-x:auto;-webkit-overflow-scrolling:touch}#content{min-width:0;max-width:100%}}@media(max-width:430px){.cards{grid-template-columns:1fr}.panel,.card{padding:12px}main{padding-left:10px;padding-right:10px}}
 </style></head>
 <body>
 <section class="login" id="login">
@@ -33,7 +33,7 @@ const SUPABASE_URL='https://ntualkoalqsnumewzkmx.supabase.co';
 const SUPABASE_KEY='sb_publishable_hLqxBJokRpIJt5XoRO6Dzg_QkL5oTOP';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 let currentUser=null,currentProfile=null;
-const modules=["Inicio","Clientes","Proveedores","Catálogo de productos","Inventario","Pedidos","Cotizaciones","Cobros","Compras y Gastos","Ajustes","Reportes"];
+const modules=["Inicio","Clientes","Proveedores","Catálogo de productos","Inventario","Pedidos","Cotizaciones","Cobros","Compras y Gastos","Ajustes","Calculadora de precios","Reportes"];
 
 function money(n){return "$"+Number(n||0).toFixed(2)}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]))}
@@ -54,7 +54,7 @@ async function signOut(){await sb.auth.signOut();currentUser=null;currentProfile
 async function show(m){
  title.textContent=m;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.textContent===m));
  content.innerHTML='<div class="panel">Cargando...</div>';
- if(m==="Inicio")return dashboard();if(m==="Clientes")return clients();if(m==="Proveedores")return suppliers();if(m==="Catálogo de productos")return catalog();if(m==="Inventario")return inventory();if(m==="Pedidos")return orders();if(m==="Cotizaciones")return quotations();if(m==="Cobros")return payments();if(m==="Compras y Gastos")return purchasesExpenses();if(m==="Ajustes")return adjustments();if(m==="Reportes")return reports();
+ if(m==="Inicio")return dashboard();if(m==="Clientes")return clients();if(m==="Proveedores")return suppliers();if(m==="Catálogo de productos")return catalog();if(m==="Inventario")return inventory();if(m==="Pedidos")return orders();if(m==="Cotizaciones")return quotations();if(m==="Cobros")return payments();if(m==="Compras y Gastos")return purchasesExpenses();if(m==="Ajustes")return adjustments();if(m==="Calculadora de precios")return priceCalculator();if(m==="Reportes")return reports();
  content.innerHTML=`<div class="panel"><h2>${m}</h2><p style="color:var(--muted)">Este módulo se conectará en la siguiente fase. La base online ya está preparada.</p></div>`;
 }
 async function dashboard(){
@@ -229,7 +229,7 @@ let orderLines=[];
 async function orders(){
  const [{data:ordersData,error:oe},{data:clientsData},{data:productsData}]=await Promise.all([
    sb.from("pedidos").select("id,numero,fecha,telefono,instagram,fecha_entrega,canal_venta,estado,subtotal,descuento,total,observaciones,cliente_id,clientes(nombre),pedido_detalles(*),cobros(*)").order("created_at",{ascending:false}),
-   sb.from("clientes").select("id,nombre,telefono,instagram").eq("activo",true).order("nombre"),
+   sb.from("clientes").select("id,nombre,cedula_ruc,telefono,instagram").eq("activo",true).order("nombre"),
    sb.from("catalogo_productos").select("id,codigo,nombre,tipo,precio_venta,controla_inventario,producto_inventario_id,productos(id,codigo,producto,color,talla,existencia,costo_unitario)").eq("activo",true).order("nombre")
  ]);
  if(oe)return content.innerHTML=`<div class="panel">Error: ${esc(oe.message)}</div>`;
@@ -409,7 +409,7 @@ async function registerPayment(id,balance){
 let quoteLines=[];
 async function quotations(){
  const [{data:q,error},{data:clientsData},{data:catalogData}]=await Promise.all([
-  sb.from("cotizaciones").select("*,clientes(nombre,telefono,instagram),cotizacion_detalles(*)").order("created_at",{ascending:false}),
+  sb.from("cotizaciones").select("*,clientes(nombre,cedula_ruc,telefono,instagram),cotizacion_detalles(*)").order("created_at",{ascending:false}),
   sb.from("clientes").select("id,nombre,telefono,instagram").eq("activo",true).order("nombre"),
   sb.from("catalogo_productos").select("id,codigo,nombre,precio_venta,controla_inventario,producto_inventario_id,productos(color,talla,existencia)").eq("activo",true).order("nombre")
  ]);
@@ -425,11 +425,11 @@ function newQuote(){
  let ps=(window._qcatalog||[]).map(p=>`<option value="${p.id}">${esc(p.codigo||"")} · ${esc(p.nombre)}</option>`).join("");
  quoteForm.classList.remove("hidden");
  quoteForm.innerHTML=`<h3>Nueva cotización</h3><div class="grid">
- <div><label>Cliente</label><select id="qclient"><option value="">Seleccionar</option>${cs}</select></div>
- <div><label>Válida hasta</label><input id="qvalid" type="date"></div>
+ <div><label>Cliente</label><select id="qclient" onchange="qFillClient()"><option value="">Seleccionar</option>${cs}</select></div>
+ <div><label>Válida hasta</label><input id="qvalid" type="date"></div><div><label>Cliente / Razón social</label><input id="qname"></div><div><label>Cédula / RUC</label><input id="qruc"></div><div><label>Teléfono</label><input id="qphone"></div><div><label>Instagram</label><input id="qig"></div>
  <div><label>Producto / servicio</label><select id="qprod" onchange="qFillPrice()"><option value="">Seleccionar</option>${ps}</select></div>
  <div><label>Cantidad</label><input id="qqty" type="number" min=".01" step=".01" value="1"></div>
- <div><label>Precio unitario</label><input id="qprice" type="number" min=".01" step=".01"></div>
+ <div><label>Precio unitario</label><input id="qprice" type="number" min=".01" step=".01"><button type="button" class="btn alt" style="margin-top:8px" onclick="priceCalculator(true)">Calcular precio</button></div>
  <div><label>Personalización</label><input id="qpers"></div></div>
  <button class="btn alt" onclick="qAddLine()">+ Agregar producto</button><div id="qLines" style="margin:14px 0"></div>
  <div class="grid"><div><label>Descuento general</label><input id="qdiscount" type="number" min="0" step=".01" value="0" oninput="qRenderLines()"></div>
@@ -437,6 +437,7 @@ function newQuote(){
  <button class="btn" onclick="saveQuote()">Guardar cotización</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0">`;
  qRenderLines();
 }
+function qFillClient(){let c=(window._qclients||[]).find(x=>x.id===qclient.value);if(!c)return;qname.value=c.nombre||"";qruc.value=c.cedula_ruc||"";qphone.value=c.telefono||"";qig.value=c.instagram||""}
 function qFillPrice(){let p=(window._qcatalog||[]).find(x=>x.id===qprod.value);if(p)qprice.value=Number(p.precio_venta||0).toFixed(2)}
 function qAddLine(){
  let p=(window._qcatalog||[]).find(x=>x.id===qprod.value),qty=Number(qqty.value||0),price=Number(qprice.value||0);
@@ -453,6 +454,7 @@ async function saveQuote(){
  if(!qclient.value)return alert("Selecciona un cliente.");if(!qvalid.value)return alert("Indica hasta cuándo es válida.");if(!quoteLines.length)return alert("Agrega al menos una línea.");
  const {data,error}=await sb.rpc("registrar_cotizacion",{p_cliente_id:qclient.value,p_valida_hasta:qvalid.value,p_observaciones:qnotes.value||null,p_descuento:Number(qdiscount.value||0),p_detalles:quoteLines});
  if(error)return alert("No se pudo guardar: "+error.message);
+ await sb.from("cotizaciones").update({cliente_nombre:qname.value.trim()||null,cliente_cedula_ruc:qruc.value.trim()||null,cliente_telefono:qphone.value.trim()||null,cliente_instagram:qig.value.trim()||null}).eq("id",data.id);
  alert(`Cotización ${data.numero} guardada. Total: ${money(data.total)}`);await quotations();
 }
 async function viewQuote(id){
@@ -460,7 +462,7 @@ async function viewQuote(id){
  let details=(q.cotizacion_detalles||[]).map(d=>`<tr><td>${esc(d.descripcion)}</td><td>${d.cantidad}</td><td>${money(d.precio_unitario)}</td><td>${esc(d.personalizacion||"—")}</td><td>${money(d.total)}</td></tr>`).join("");
  quoteForm.classList.remove("hidden");
  quoteForm.innerHTML=`<div class="head"><h3>${esc(q.numero)}</h3><span class="badge">${esc(q.estado)}</span></div>
- <p><b>Cliente:</b> ${esc(q.clientes?.nombre||"—")} &nbsp; <b>Fecha:</b> ${esc(q.fecha)} &nbsp; <b>Válida hasta:</b> ${esc(q.valida_hasta||"—")}</p>
+ <p><b>Cliente:</b> ${esc(q.cliente_nombre||q.clientes?.nombre||"—")} &nbsp; <b>Cédula/RUC:</b> ${esc(q.cliente_cedula_ruc||q.clientes?.cedula_ruc||"—")} &nbsp; <b>Teléfono:</b> ${esc(q.cliente_telefono||q.clientes?.telefono||"—")} &nbsp; <b>Instagram:</b> ${esc(q.cliente_instagram||q.clientes?.instagram||"—")}<br><b>Fecha:</b> ${esc(q.fecha)} &nbsp; <b>Válida hasta:</b> ${esc(q.valida_hasta||"—")}</p>
  <div style="overflow:auto"><table><thead><tr><th>Producto / servicio</th><th>Cant.</th><th>Precio</th><th>Personalización</th><th>Total</th></tr></thead><tbody>${details}</tbody></table></div>
  <p style="text-align:right"><b>Total: ${money(q.total)}</b></p><p>${esc(q.observaciones||"")}</p>
  <button class="btn alt" onclick="printQuote('${q.id}')">Vista previa / Imprimir PDF</button>
