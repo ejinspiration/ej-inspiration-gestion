@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V21</title>
+<title>EJ Inspiration | Gestión V25.1</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -100,6 +100,8 @@ async function clients(){
  if(error)return content.innerHTML=`<div class="panel">Error: ${esc(error.message)}</div>`;
  let rows=(data||[]).map(x=>`<tr><td>${esc(x.nombre)}</td><td>${esc(x.cedula_ruc||"—")}</td><td>${esc(x.telefono||"—")}</td><td>${esc(x.instagram||"—")}</td><td>${esc(x.notas||"—")}</td></tr>`).join("");
  content.innerHTML=`<div class="panel"><div class="head"><h2>Clientes</h2><button class="btn" onclick="toggle('cf')">+ Nuevo cliente</button></div>${searchBox('clientSearch','clientTable','Buscar por nombre, cédula/RUC, celular o Instagram...')}<div id="cf" class="hidden"><div class="grid"><div><label>Nombre</label><input id="cname"></div><div><label>Cédula / RUC</label><input id="cid" placeholder="Opcional"></div><div><label>Teléfono</label><input id="cphone"></div><div><label>Instagram</label><input id="cig"></div><div><label>Notas</label><input id="cnotes"></div></div><button class="btn" onclick="addClient()">Guardar cliente</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0"></div><div style="overflow:auto"><table id="clientTable"><thead><tr><th>Cliente</th><th>Cédula / RUC</th><th>Teléfono</th><th>Instagram</th><th>Notas</th></tr></thead><tbody>${rows||`<tr><td colspan="5">Aún no hay clientes.</td></tr>`}</tbody></table></div></div>`;
+ const syncTextile=()=>{const w=document.getElementById('ptextileWrap');if(w)w.style.display=(String(pcat?.value||'').trim().toLowerCase()==='textil')?'block':'none';};
+ if(window.pcat){pcat.addEventListener('input',syncTextile);pcat.addEventListener('change',syncTextile);syncTextile();}
 }
 async function addClient(){
  if(!cname.value.trim())return alert("Escribe el nombre del cliente.");
@@ -118,22 +120,79 @@ async function addSupplier(){
  const {error}=await sb.from("proveedores").insert({nombre:sname.value.trim(),cedula_ruc:sid.value.trim()||null,telefono:sphone.value.trim()||null,correo:semail.value.trim()||null,contacto:scontact.value.trim()||null,direccion:saddress.value.trim()||null,observaciones:snotes.value.trim()||null,created_by:currentUser.id});
  if(error)return alert(error.message);await suppliers();
 }
+const INV_DEFAULT_CATEGORIES=[
+ {nombre:'Vasos y tazas',prefijo:'VAS'},{nombre:'Textil',prefijo:'TEX'},{nombre:'Papelería',prefijo:'PAP'},
+ {nombre:'Religiosos',prefijo:'REL'},{nombre:'Cajas y empaques',prefijo:'CAJ'},{nombre:'Cintas y lazos',prefijo:'CIN'},
+ {nombre:'Sublimación',prefijo:'SUB'},{nombre:'Grabado láser',prefijo:'LAS'},{nombre:'Acrílicos y madera',prefijo:'ACR'},
+ {nombre:'Candy Bar',prefijo:'CAN'},{nombre:'Topper y decoración',prefijo:'TOP'},{nombre:'Stickers y adhesivos',prefijo:'STI'},
+ {nombre:'Corporativos',prefijo:'COR'},{nombre:'Insumos de producción',prefijo:'INS'},{nombre:'Otros',prefijo:'OTR'}
+];
+const INV_COLORS=['Blanco','Negro','Crema','Beige','Rojo','Azul','Rosado','Verde','Dorado','Plateado','Transparente','Multicolor'];
+const INV_SIZES=['XS','S','M','L','XL','XXL','XXXL','Única'];
+const TEXTILE_LINES=['Hombre','Mujer','Niño','Unisex'];
+function invCategoryList(){return [...new Map([...(INV_DEFAULT_CATEGORIES||[]),...(window._invCategories||[])].map(x=>[normalizeText(x.nombre),x])).values()]}
+function invCategoryOptions(current=''){return invCategoryList().map(x=>`<option value="${esc(x.nombre)}" ${normalizeText(x.nombre)===normalizeText(current)?'selected':''}>${esc(x.nombre)}</option>`).join('')}
+function invUniqueSuggestions(values){
+ const grouped=new Map();
+ for(const raw of (values||[])){
+   const v=String(raw??'').trim(); if(!v)continue;
+   const key=normalizeText(v).replace(/\s+/g,' ').trim();
+   const prev=grouped.get(key);
+   // Si existen dos variantes equivalentes (ej. Sueter / Suéter), conserva la mejor escrita.
+   if(!prev || (/[áéíóúüñÁÉÍÓÚÜÑ]/.test(v) && !/[áéíóúüñÁÉÍÓÚÜÑ]/.test(prev))) grouped.set(key,v);
+ }
+ return [...grouped.values()];
+}
+function invDataList(id,values){return `<datalist id="${id}">${invUniqueSuggestions(values).map(v=>`<option value="${esc(v)}"></option>`).join('')}</datalist>`}
+function invPrefixFor(name){return invCategoryList().find(x=>normalizeText(x.nombre)===normalizeText(name))?.prefijo||''}
+async function ensureInvCategory(name){
+ name=(name||'').trim(); if(!name)return null;
+ let found=invCategoryList().find(x=>normalizeText(x.nombre)===normalizeText(name)); if(found)return found;
+ let pref=(prompt(`Nueva categoría: ${name}\n\nEscribe un prefijo de 3 letras para sus códigos:`,name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase())||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
+ if(pref.length<2){alert('El prefijo debe tener 2 o 3 letras/números.');return null}
+ const {data,error}=await sb.from('categorias_inventario').insert({nombre:name,prefijo:pref,created_by:currentUser.id}).select().single();
+ if(error){alert('No pude guardar la categoría: '+error.message);return null}
+ window._invCategories=[...(window._invCategories||[]),data]; return data;
+}
+async function nextInventoryCode(category){
+ const pref=invPrefixFor(category); if(!pref)return '';
+ const {data}=await sb.from('productos').select('codigo').ilike('codigo',pref+'-%');
+ let max=0;(data||[]).forEach(x=>{const m=String(x.codigo||'').match(new RegExp('^'+pref+'-(\\d+)$','i'));if(m)max=Math.max(max,Number(m[1]))});
+ return `${pref}-${String(max+1).padStart(4,'0')}`;
+}
+async function previewInventoryCode(){
+ const cat=document.getElementById('pcat')?.value.trim();const el=document.getElementById('pcode');if(!el)return;
+ const found=invCategoryList().find(x=>normalizeText(x.nombre)===normalizeText(cat));
+ el.value=found?await nextInventoryCode(found.nombre):'Se asignará al guardar';
+}
 async function inventory(){
- const {data,error}=await sb.from("productos").select("*").eq("activo",true).order("producto");
+ const [{data,error},{data:cats}]=await Promise.all([
+   sb.from('productos').select('*').eq('activo',true).order('producto'),
+   sb.from('categorias_inventario').select('*').order('nombre')
+ ]);
  if(error)return content.innerHTML=`<div class="panel">Error: ${esc(error.message)}</div>`;
- window._inventoryRows=data||[];
- let rows=(data||[]).map(p=>`<tr><td>${esc(p.codigo)}</td><td>${esc(p.categoria||"—")}</td><td>${esc(p.producto)}</td><td>${esc(p.color||"—")}</td><td>${esc(p.talla||"—")}</td><td>${p.existencia}</td><td>${money(p.costo_unitario)}</td><td>${money(p.existencia*p.costo_unitario)}</td><td><span class="badge ${p.existencia<=0?'out':p.existencia<=p.stock_minimo?'low':''}">${p.existencia<=0?'Agotado':p.existencia<=p.stock_minimo?'Stock bajo':'Disponible'}</span></td><td style="white-space:nowrap"><button class="btn alt" onclick="editInventory('${p.id}')">Editar</button> <button class="btn alt" onclick="removeInventory('${p.id}')">Eliminar</button></td></tr>`).join("");
- content.innerHTML=`<div class="panel"><div class="head"><h2>Inventario</h2><button class="btn" onclick="toggle('pf')">+ Nuevo producto</button></div>${searchBox('inventorySearch','inventoryTable','Buscar por código, categoría, producto, color o talla...')}<div id="pf" class="hidden"><div class="grid"><div><label>Código</label><input id="pcode"></div><div><label>Categoría</label><input id="pcat"></div><div><label>Producto</label><input id="pname"></div><div><label>Color</label><input id="pcolor"></div><div><label>Talla</label><input id="psize"></div><div><label>Existencia inicial</label><input id="pqty" type="number" step="0.01"></div><div><label>Stock mínimo</label><input id="pmin" type="number" step="0.01" value="3"></div><div><label>Costo unitario</label><input id="pcost" type="number" step="0.01"></div></div><button class="btn" onclick="addProduct()">Guardar producto</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0"></div><div id="inventoryEdit" class="hidden"></div><div style="overflow:auto"><table id="inventoryTable"><thead><tr><th>Código</th><th>Categoría</th><th>Producto</th><th>Color</th><th>Talla</th><th>Existencia</th><th>Costo</th><th>Valor</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+ window._inventoryRows=data||[];window._invCategories=cats||[];
+ const colors=[...INV_COLORS,...(data||[]).map(x=>x.color)];const sizes=[...INV_SIZES,...(data||[]).map(x=>x.talla)];const productNames=[...(data||[]).map(x=>x.producto)];
+ let rows=(data||[]).map(p=>`<tr><td>${esc(p.fecha_ingreso||String(p.created_at||'').slice(0,10)||'—')}</td><td>${esc(p.codigo)}</td><td>${esc(p.categoria||'—')}</td><td>${esc(p.producto)}</td><td>${esc(p.linea_textil||'—')}</td><td>${esc(p.color||'—')}</td><td>${esc(p.talla||'—')}</td><td>${p.existencia}</td><td>${money(p.costo_base ?? p.costo_unitario)}</td><td>${esc(p.itbms_tipo||'No aplica')}</td><td>${money(p.itbms_monto||0)}</td><td>${money(p.costo_unitario)}</td><td>${money(p.existencia*p.costo_unitario)}</td><td><span class="badge ${p.existencia<=0?'out':p.existencia<=p.stock_minimo?'low':''}">${p.existencia<=0?'Agotado':p.existencia<=p.stock_minimo?'Stock bajo':'Disponible'}</span></td><td style="white-space:nowrap"><button class="btn alt" onclick="editInventory('${p.id}')">Editar</button> <button class="btn alt" onclick="removeInventory('${p.id}')">Eliminar</button></td></tr>`).join('');
+ content.innerHTML=`<div class="panel"><div class="head"><h2>Inventario</h2><button class="btn" onclick="toggle('pf');previewInventoryCode()">+ Nuevo producto</button></div>${searchBox('inventorySearch','inventoryTable','Buscar por fecha, código, categoría, producto, color o talla...')}<div id="pf" class="hidden"><div class="grid">
+ <div><label>Fecha de ingreso</label><input id="pdate" type="date" value="${todayISO()}"></div>
+ <div><label>Código automático</label><input id="pcode" value="Selecciona una categoría" disabled><small>Se genera por categoría y no se puede editar.</small></div>
+ <div><label>Categoría</label><input id="pcat" list="invCatList" placeholder="Seleccionar o escribir nueva" oninput="previewInventoryCode()">${invDataList('invCatList',invCategoryList().map(x=>x.nombre))}<small>Si escribes una nueva, quedará guardada para próximos productos.</small></div>
+ <div><label>Producto</label><input id="pname" list="invProductList" placeholder="Seleccionar o escribir">${invDataList('invProductList',productNames)}<small>Si escribes un producto nuevo, quedará disponible como sugerencia después de guardarlo.</small></div>
+ <div id="ptextileWrap" style="display:none"><label>Línea textil</label><select id="ptextile"><option value="">Seleccionar</option>${TEXTILE_LINES.map(x=>`<option value="${x}">${x}</option>`).join('')}</select><small>Solo aparece para la categoría Textil.</small></div>
+ <div><label>Color</label><input id="pcolor" list="invColorList" placeholder="Seleccionar o escribir">${invDataList('invColorList',colors)}</div>
+ <div><label>Talla</label><input id="psize" list="invSizeList" placeholder="Seleccionar o escribir">${invDataList('invSizeList',sizes)}</div>
+ <div><label>Existencia inicial</label><input id="pqty" type="number" step="0.01"></div><div><label>Stock mínimo</label><input id="pmin" type="number" step="0.01" value="3"></div><div><label>Costo base unitario</label><input id="pcost" type="number" step="0.01"></div><div><label>ITBMS del costo</label><select id="pitbms"><option value="Incluido">Incluido en el precio</option><option value="Agregar 7%">Agregar 7%</option><option value="No aplica" selected>No aplica</option></select><small>Si eliges “Agregar 7%”, el sistema lo suma automáticamente al costo real.</small></div></div><button class="btn" onclick="addProduct()">Guardar producto</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0"></div><div id="inventoryEdit" class="hidden"></div><div style="overflow:auto"><table id="inventoryTable"><thead><tr><th>Fecha ingreso</th><th>Código</th><th>Categoría</th><th>Producto</th><th>Línea textil</th><th>Color</th><th>Talla</th><th>Existencia</th><th>Costo base</th><th>ITBMS</th><th>Impuesto</th><th>Costo real</th><th>Valor</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 function editInventory(id){
  const p=(window._inventoryRows||[]).find(x=>x.id===id); if(!p)return;
  const box=document.getElementById('inventoryEdit'); box.classList.remove('hidden');
- box.innerHTML=`<h3>Editar producto de inventario</h3><p style="color:var(--muted);margin-top:0">La existencia se corrige desde Ajustes para conservar el historial.</p><div class="grid"><div><label>Código</label><input id="epcode" value="${esc(p.codigo||'')}"></div><div><label>Categoría</label><input id="epcat" value="${esc(p.categoria||'')}"></div><div><label>Producto</label><input id="epname" value="${esc(p.producto||'')}"></div><div><label>Color</label><input id="epcolor" value="${esc(p.color||'')}"></div><div><label>Talla</label><input id="epsize" value="${esc(p.talla||'')}"></div><div><label>Stock mínimo</label><input id="epmin" type="number" step="0.01" value="${Number(p.stock_minimo||0)}"></div><div><label>Costo unitario</label><input id="epcost" type="number" min="0" step="0.01" value="${Number(p.costo_unitario||0)}"></div><div><label>Existencia actual</label><input value="${Number(p.existencia||0)}" disabled></div></div><button class="btn" onclick="saveInventoryEdit('${p.id}')">Guardar cambios</button> <button class="btn alt" onclick="inventoryEdit.classList.add('hidden')">Cancelar</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0">`;
+ box.innerHTML=`<h3>Editar producto de inventario</h3><p style="color:var(--muted);margin-top:0">El código no se modifica. La existencia se corrige desde Ajustes para conservar el historial.</p><div class="grid"><div><label>Fecha de ingreso</label><input id="epdate" type="date" value="${esc(p.fecha_ingreso||String(p.created_at||'').slice(0,10)||todayISO())}"></div><div><label>Código</label><input value="${esc(p.codigo||'')}" disabled></div><div><label>Categoría</label><input id="epcat" value="${esc(p.categoria||'')}" disabled></div><div><label>Producto</label><input id="epname" list="editProductList" value="${esc(p.producto||'')}">${invDataList('editProductList',(window._inventoryRows||[]).map(x=>x.producto))}</div><div id="eptextileWrap" style="${String(p.categoria||'').toLowerCase()==='textil'?'':'display:none'}"><label>Línea textil</label><select id="eptextile"><option value="">Seleccionar</option>${TEXTILE_LINES.map(x=>`<option value="${x}" ${p.linea_textil===x?'selected':''}>${x}</option>`).join('')}</select></div><div><label>Color</label><input id="epcolor" list="editColorList" value="${esc(p.color||'')}">${invDataList('editColorList',[...INV_COLORS,...(window._inventoryRows||[]).map(x=>x.color)])}</div><div><label>Talla</label><input id="epsize" list="editSizeList" value="${esc(p.talla||'')}">${invDataList('editSizeList',[...INV_SIZES,...(window._inventoryRows||[]).map(x=>x.talla)])}</div><div><label>Stock mínimo</label><input id="epmin" type="number" step="0.01" value="${Number(p.stock_minimo||0)}"></div><div><label>Costo base unitario</label><input id="epcost" type="number" min="0" step="0.01" value="${Number(p.costo_base ?? p.costo_unitario ?? 0)}"></div><div><label>ITBMS del costo</label><select id="epitbms"><option value="Incluido" ${p.itbms_tipo==='Incluido'?'selected':''}>Incluido en el precio</option><option value="Agregar 7%" ${p.itbms_tipo==='Agregar 7%'?'selected':''}>Agregar 7%</option><option value="No aplica" ${!p.itbms_tipo||p.itbms_tipo==='No aplica'?'selected':''}>No aplica</option></select></div><div><label>Existencia actual</label><input value="${Number(p.existencia||0)}" disabled></div></div><button class="btn" onclick="saveInventoryEdit('${p.id}')">Guardar cambios</button> <button class="btn alt" onclick="inventoryEdit.classList.add('hidden')">Cancelar</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0">`;
  box.scrollIntoView({behavior:'smooth',block:'start'});
 }
 async function saveInventoryEdit(id){
- if(!epcode.value.trim()||!epname.value.trim())return alert('Código y producto son obligatorios.');
- const payload={codigo:epcode.value.trim(),categoria:epcat.value.trim()||null,producto:epname.value.trim(),color:epcolor.value.trim()||null,talla:epsize.value.trim()||null,stock_minimo:Number(epmin.value||0),costo_unitario:Number(epcost.value||0)};
+ if(!epname.value.trim())return alert('El producto es obligatorio.');
+ const base=Number(epcost.value||0), tipo=epitbms.value; const impuesto=tipo==='Agregar 7%'?Number((base*.07).toFixed(2)):tipo==='Incluido'?Number((base-(base/1.07)).toFixed(2)):0; const real=tipo==='Agregar 7%'?Number((base*1.07).toFixed(2)):base; const payload={fecha_ingreso:epdate.value||todayISO(),producto:epname.value.trim(),linea_textil:(String(epcat.value||'').toLowerCase()==='textil'?(eptextile.value||null):null),color:epcolor.value.trim()||null,talla:epsize.value.trim()||null,stock_minimo:Number(epmin.value||0),costo_base:base,itbms_tipo:tipo,itbms_monto:impuesto,costo_unitario:real};
  const old=(window._inventoryRows||[]).find(x=>x.id===id);
  const {error}=await sb.from('productos').update(payload).eq('id',id); if(error)return alert(error.message);
  await sb.from('auditoria').insert({usuario_id:currentUser.id,accion:'EDITAR INVENTARIO',tabla:'productos',registro_id:id,detalle:{antes:old,despues:payload}});
@@ -147,13 +206,15 @@ async function removeInventory(id){
  alert('Producto eliminado del inventario activo. Su historial se conserva.'); await inventory();
 }
 async function addProduct(){
- let q=Number(pqty.value||0),cost=Number(pcost.value||0);
- if(!pcode.value.trim()||!pname.value.trim())return alert("Código y producto son obligatorios.");
- const payload={codigo:pcode.value.trim(),categoria:pcat.value.trim()||null,producto:pname.value.trim(),color:pcolor.value.trim()||null,talla:psize.value.trim()||null,existencia:q,stock_minimo:Number(pmin.value||0),costo_unitario:cost,created_by:currentUser.id};
- const {data,error}=await sb.from("productos").insert(payload).select().single();
+ let q=Number(pqty.value||0),cost=Number(pcost.value||0),catName=pcat.value.trim();
+ if(!catName||!pname.value.trim())return alert('Categoría y producto son obligatorios.');
+ let cat=await ensureInvCategory(catName);if(!cat)return;
+ let code=await nextInventoryCode(cat.nombre);if(!code)return alert('No pude generar el código automático.');
+ const tipo=pitbms.value; const impuesto=tipo==='Agregar 7%'?Number((cost*.07).toFixed(2)):tipo==='Incluido'?Number((cost-(cost/1.07)).toFixed(2)):0; const real=tipo==='Agregar 7%'?Number((cost*1.07).toFixed(2)):cost; const payload={codigo:code,categoria:cat.nombre,producto:pname.value.trim(),linea_textil:(cat.nombre.toLowerCase()==='textil'?(ptextile.value||null):null),color:pcolor.value.trim()||null,talla:psize.value.trim()||null,existencia:q,stock_minimo:Number(pmin.value||0),costo_base:cost,itbms_tipo:tipo,itbms_monto:impuesto,costo_unitario:real,fecha_ingreso:pdate.value||todayISO(),created_by:currentUser.id};
+ const {data,error}=await sb.from('productos').insert(payload).select().single();
  if(error)return alert(error.message);
- if(q!==0)await sb.from("movimientos_inventario").insert({producto_id:data.id,tipo:"INICIAL",cantidad:q,existencia_anterior:0,existencia_nueva:q,motivo:"Existencia inicial",created_by:currentUser.id});
- await inventory();
+ if(q!==0)await sb.from('movimientos_inventario').insert({producto_id:data.id,tipo:'INICIAL',cantidad:q,existencia_anterior:0,existencia_nueva:q,motivo:'Existencia inicial',created_by:currentUser.id});
+ alert(`Producto guardado con código ${code}.`);await inventory();
 }
 
 
