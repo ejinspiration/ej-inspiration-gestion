@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión</title>
+<title>EJ Inspiration | Gestión V21</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -39,6 +39,13 @@ const modules=["Inicio","Clientes","Proveedores","Catálogo de productos","Inven
 
 function money(n){return "$"+Number(n||0).toFixed(2)}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]))}
+const EJ_CATEGORIES=["Digital","Topper","Candy Bar","Sublimación","Grabado láser","Textil","Papelería","Religiosos","Cajas de regalo","Corporativos","Decoración","Stickers"];
+function normalizeText(v){return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()}
+function searchTable(inputId,tableId){const q=normalizeText(document.getElementById(inputId)?.value);document.querySelectorAll(`#${tableId} tbody tr`).forEach(r=>r.style.display=!q||normalizeText((r.dataset.search||'')+' '+r.innerText).includes(q)?'':'none')}
+function searchBox(id,tableId,placeholder='Buscar por nombre, código, teléfono o fecha...'){return `<div style="margin:12px 0"><input id="${id}" oninput="searchTable('${id}','${tableId}')" placeholder="🔎 ${placeholder}" style="max-width:520px"></div>`}
+function todayISO(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function deliveryAlert(date,status){if(!date||['Entregado','Cancelado'].includes(status))return '';const a=new Date(todayISO()+'T00:00:00'),b=new Date(date+'T00:00:00'),days=Math.round((b-a)/86400000);if(days<0)return '<span class="badge out">🔴 Atrasado</span>';if(days===0)return '<span class="badge out">🔴 Entrega hoy</span>';if(days===1)return '<span class="badge low">⚠ Entrega mañana</span>';return ''}
+function categoryOptions(current=''){const vals=[...new Set([...EJ_CATEGORIES,...((window._catalogCategories||[]).filter(Boolean))])];return vals.map(v=>`<option value="${esc(v)}" ${normalizeText(v)===normalizeText(current)?'selected':''}>${esc(v)}</option>`).join('')}
 function setupNav(){nav.innerHTML=modules.map(m=>`<button onclick="show('${m}');closeMobileMenu()">${m}</button>`).join("")}
 function toggleMobileMenu(){document.querySelector('aside').classList.toggle('mobile-open');menuOverlay.classList.toggle('show')}
 function closeMobileMenu(){document.querySelector('aside').classList.remove('mobile-open');menuOverlay.classList.remove('show')}
@@ -84,15 +91,15 @@ async function dashboard(){
  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="show('Pedidos')">+ Nuevo pedido</button><button class="btn alt" onclick="show('Cotizaciones')">+ Nueva cotización</button><button class="btn alt" onclick="show('Cobros')">Registrar cobro</button><button class="btn alt" onclick="show('Compras y Gastos')">Registrar compra/gasto</button></div></div>
  <div class="cards"><div class="card">Ventas del mes<div class="metric">${money(sales)}</div></div><div class="card">Cobrado<div class="metric">${money(collected)}</div></div><div class="card">Por cobrar<div class="metric">${money(receivable)}</div></div><div class="card">Utilidad estimada<div class="metric">${money(profit)}</div></div></div>
  <div class="cards"><div class="card">Pedidos pendientes<div class="metric">${pending.length}</div></div><div class="card">Próximas entregas<div class="metric">${upcoming.length}</div></div><div class="card">Stock bajo / agotado<div class="metric">${low.length}</div></div><div class="card">Gastos operativos<div class="metric">${money(oper)}</div></div></div>
- ${overdue.length?`<div class="panel"><div class="head"><h2>⚠ Entregas vencidas</h2><span class="badge out">${overdue.length}</span></div><div style="overflow:auto"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Entrega</th><th>Estado</th></tr></thead><tbody>${overdue.map(o=>`<tr><td>${esc(o.numero)}</td><td>${esc(o.clientes?.nombre||'—')}</td><td>${o.fecha_entrega}</td><td>${statusBadge(o.estado)}</td></tr>`).join('')}</tbody></table></div></div>`:''}
- <div class="grid"><div class="panel"><div class="head"><h2>Próximas entregas</h2><button class="btn alt" onclick="show('Pedidos')">Ver pedidos</button></div><div style="overflow:auto"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Entrega</th><th>Estado</th></tr></thead><tbody>${upcoming.slice(0,6).map(o=>`<tr><td>${esc(o.numero)}</td><td>${esc(o.clientes?.nombre||'—')}</td><td>${o.fecha_entrega}</td><td>${statusBadge(o.estado)}</td></tr>`).join('')||'<tr><td colspan="4">No hay entregas en los próximos 7 días.</td></tr>'}</tbody></table></div></div>
+ ${overdue.length?`<div class="panel"><div class="head"><h2>⚠ Entregas vencidas</h2><span class="badge out">${overdue.length}</span></div><div style="overflow:auto"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Entrega</th><th>Estado</th></tr></thead><tbody>${overdue.map(o=>`<tr><td>${esc(o.numero)}</td><td>${esc(o.clientes?.nombre||'—')}</td><td>${o.fecha_entrega}<br>${deliveryAlert(o.fecha_entrega,o.estado)}</td><td>${statusBadge(o.estado)}</td></tr>`).join('')}</tbody></table></div></div>`:''}
+ <div class="grid"><div class="panel"><div class="head"><h2>Próximas entregas</h2><button class="btn alt" onclick="show('Pedidos')">Ver pedidos</button></div><div style="overflow:auto"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Entrega</th><th>Estado</th></tr></thead><tbody>${upcoming.slice(0,6).map(o=>`<tr><td>${esc(o.numero)}</td><td>${esc(o.clientes?.nombre||'—')}</td><td>${o.fecha_entrega}<br>${deliveryAlert(o.fecha_entrega,o.estado)}</td><td>${statusBadge(o.estado)}</td></tr>`).join('')||'<tr><td colspan="4">No hay entregas en los próximos 7 días.</td></tr>'}</tbody></table></div></div>
  <div class="panel"><div class="head"><h2>Alertas de inventario</h2><button class="btn alt" onclick="show('Inventario')">Ver inventario</button></div><div style="overflow:auto"><table><thead><tr><th>Producto</th><th>Existencia</th><th>Mínimo</th></tr></thead><tbody>${low.slice(0,6).map(x=>`<tr><td>${esc(x.codigo)} · ${esc(x.producto)}</td><td>${Number(x.existencia||0)}</td><td>${Number(x.stock_minimo||0)}</td></tr>`).join('')||'<tr><td colspan="3">Inventario sin alertas.</td></tr>'}</tbody></table></div></div></div>`;
 }
 async function clients(){
  const {data,error}=await sb.from("clientes").select("*").order("created_at",{ascending:false});
  if(error)return content.innerHTML=`<div class="panel">Error: ${esc(error.message)}</div>`;
  let rows=(data||[]).map(x=>`<tr><td>${esc(x.nombre)}</td><td>${esc(x.cedula_ruc||"—")}</td><td>${esc(x.telefono||"—")}</td><td>${esc(x.instagram||"—")}</td><td>${esc(x.notas||"—")}</td></tr>`).join("");
- content.innerHTML=`<div class="panel"><div class="head"><h2>Clientes</h2><button class="btn" onclick="toggle('cf')">+ Nuevo cliente</button></div><div id="cf" class="hidden"><div class="grid"><div><label>Nombre</label><input id="cname"></div><div><label>Cédula / RUC</label><input id="cid" placeholder="Opcional"></div><div><label>Teléfono</label><input id="cphone"></div><div><label>Instagram</label><input id="cig"></div><div><label>Notas</label><input id="cnotes"></div></div><button class="btn" onclick="addClient()">Guardar cliente</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0"></div><div style="overflow:auto"><table><thead><tr><th>Cliente</th><th>Cédula / RUC</th><th>Teléfono</th><th>Instagram</th><th>Notas</th></tr></thead><tbody>${rows||`<tr><td colspan="5">Aún no hay clientes.</td></tr>`}</tbody></table></div></div>`;
+ content.innerHTML=`<div class="panel"><div class="head"><h2>Clientes</h2><button class="btn" onclick="toggle('cf')">+ Nuevo cliente</button></div>${searchBox('clientSearch','clientTable','Buscar por nombre, cédula/RUC, celular o Instagram...')}<div id="cf" class="hidden"><div class="grid"><div><label>Nombre</label><input id="cname"></div><div><label>Cédula / RUC</label><input id="cid" placeholder="Opcional"></div><div><label>Teléfono</label><input id="cphone"></div><div><label>Instagram</label><input id="cig"></div><div><label>Notas</label><input id="cnotes"></div></div><button class="btn" onclick="addClient()">Guardar cliente</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0"></div><div style="overflow:auto"><table id="clientTable"><thead><tr><th>Cliente</th><th>Cédula / RUC</th><th>Teléfono</th><th>Instagram</th><th>Notas</th></tr></thead><tbody>${rows||`<tr><td colspan="5">Aún no hay clientes.</td></tr>`}</tbody></table></div></div>`;
 }
 async function addClient(){
  if(!cname.value.trim())return alert("Escribe el nombre del cliente.");
@@ -104,7 +111,7 @@ async function suppliers(){
  if(error)return content.innerHTML=`<div class="panel">Error: ${esc(error.message)}. Ejecuta primero el SQL de V18.</div>`;
  window._suppliers=data||[];
  let rows=(data||[]).map(x=>`<tr><td>${esc(x.nombre)}</td><td>${esc(x.cedula_ruc||"—")}</td><td>${esc(x.telefono||"—")}</td><td>${esc(x.correo||"—")}</td><td>${esc(x.contacto||"—")}</td><td>${esc(x.direccion||"—")}</td></tr>`).join("");
- content.innerHTML=`<div class="panel"><div class="head"><h2>Proveedores</h2><button class="btn" onclick="toggle('sf')">+ Nuevo proveedor</button></div><div id="sf" class="hidden"><div class="grid"><div><label>Nombre / Razón social</label><input id="sname"></div><div><label>Cédula / RUC</label><input id="sid"></div><div><label>Teléfono</label><input id="sphone"></div><div><label>Correo</label><input id="semail" type="email"></div><div><label>Persona de contacto</label><input id="scontact"></div><div><label>Dirección</label><input id="saddress"></div><div style="grid-column:1/-1"><label>Observaciones</label><input id="snotes"></div></div><button class="btn" onclick="addSupplier()">Guardar proveedor</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0"></div><div style="overflow:auto"><table><thead><tr><th>Proveedor</th><th>Cédula / RUC</th><th>Teléfono</th><th>Correo</th><th>Contacto</th><th>Dirección</th></tr></thead><tbody>${rows||`<tr><td colspan="6">Aún no hay proveedores.</td></tr>`}</tbody></table></div></div>`;
+ content.innerHTML=`<div class="panel"><div class="head"><h2>Proveedores</h2><button class="btn" onclick="toggle('sf')">+ Nuevo proveedor</button></div>${searchBox('supplierSearch','supplierTable','Buscar por proveedor, RUC, celular o correo...')}<div id="sf" class="hidden"><div class="grid"><div><label>Nombre / Razón social</label><input id="sname"></div><div><label>Cédula / RUC</label><input id="sid"></div><div><label>Teléfono</label><input id="sphone"></div><div><label>Correo</label><input id="semail" type="email"></div><div><label>Persona de contacto</label><input id="scontact"></div><div><label>Dirección</label><input id="saddress"></div><div style="grid-column:1/-1"><label>Observaciones</label><input id="snotes"></div></div><button class="btn" onclick="addSupplier()">Guardar proveedor</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0"></div><div style="overflow:auto"><table id="supplierTable"><thead><tr><th>Proveedor</th><th>Cédula / RUC</th><th>Teléfono</th><th>Correo</th><th>Contacto</th><th>Dirección</th></tr></thead><tbody>${rows||`<tr><td colspan="6">Aún no hay proveedores.</td></tr>`}</tbody></table></div></div>`;
 }
 async function addSupplier(){
  if(!sname.value.trim())return alert("Escribe el nombre o razón social del proveedor.");
@@ -116,7 +123,7 @@ async function inventory(){
  if(error)return content.innerHTML=`<div class="panel">Error: ${esc(error.message)}</div>`;
  window._inventoryRows=data||[];
  let rows=(data||[]).map(p=>`<tr><td>${esc(p.codigo)}</td><td>${esc(p.categoria||"—")}</td><td>${esc(p.producto)}</td><td>${esc(p.color||"—")}</td><td>${esc(p.talla||"—")}</td><td>${p.existencia}</td><td>${money(p.costo_unitario)}</td><td>${money(p.existencia*p.costo_unitario)}</td><td><span class="badge ${p.existencia<=0?'out':p.existencia<=p.stock_minimo?'low':''}">${p.existencia<=0?'Agotado':p.existencia<=p.stock_minimo?'Stock bajo':'Disponible'}</span></td><td style="white-space:nowrap"><button class="btn alt" onclick="editInventory('${p.id}')">Editar</button> <button class="btn alt" onclick="removeInventory('${p.id}')">Eliminar</button></td></tr>`).join("");
- content.innerHTML=`<div class="panel"><div class="head"><h2>Inventario</h2><button class="btn" onclick="toggle('pf')">+ Nuevo producto</button></div><div id="pf" class="hidden"><div class="grid"><div><label>Código</label><input id="pcode"></div><div><label>Categoría</label><input id="pcat"></div><div><label>Producto</label><input id="pname"></div><div><label>Color</label><input id="pcolor"></div><div><label>Talla</label><input id="psize"></div><div><label>Existencia inicial</label><input id="pqty" type="number" step="0.01"></div><div><label>Stock mínimo</label><input id="pmin" type="number" step="0.01" value="3"></div><div><label>Costo unitario</label><input id="pcost" type="number" step="0.01"></div></div><button class="btn" onclick="addProduct()">Guardar producto</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0"></div><div id="inventoryEdit" class="hidden"></div><div style="overflow:auto"><table><thead><tr><th>Código</th><th>Categoría</th><th>Producto</th><th>Color</th><th>Talla</th><th>Existencia</th><th>Costo</th><th>Valor</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+ content.innerHTML=`<div class="panel"><div class="head"><h2>Inventario</h2><button class="btn" onclick="toggle('pf')">+ Nuevo producto</button></div>${searchBox('inventorySearch','inventoryTable','Buscar por código, categoría, producto, color o talla...')}<div id="pf" class="hidden"><div class="grid"><div><label>Código</label><input id="pcode"></div><div><label>Categoría</label><input id="pcat"></div><div><label>Producto</label><input id="pname"></div><div><label>Color</label><input id="pcolor"></div><div><label>Talla</label><input id="psize"></div><div><label>Existencia inicial</label><input id="pqty" type="number" step="0.01"></div><div><label>Stock mínimo</label><input id="pmin" type="number" step="0.01" value="3"></div><div><label>Costo unitario</label><input id="pcost" type="number" step="0.01"></div></div><button class="btn" onclick="addProduct()">Guardar producto</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0"></div><div id="inventoryEdit" class="hidden"></div><div style="overflow:auto"><table id="inventoryTable"><thead><tr><th>Código</th><th>Categoría</th><th>Producto</th><th>Color</th><th>Talla</th><th>Existencia</th><th>Costo</th><th>Valor</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 function editInventory(id){
  const p=(window._inventoryRows||[]).find(x=>x.id===id); if(!p)return;
@@ -199,17 +206,18 @@ async function catalog(){
    sb.from("productos").select("id,codigo,producto,color,talla,existencia").eq("activo",true).order("producto")
  ]);
  if(error)return content.innerHTML=`<div class="panel">Error: ${esc(error.message)}</div>`;
- window._inventoryForCatalog=inv||[];
- let rows=(cats||[]).map(x=>`<tr><td>${esc(x.codigo||"—")}</td><td>${esc(x.categoria||"—")}</td><td><b>${esc(x.nombre)}</b><br><small>${esc(x.descripcion||"")}</small></td><td>${esc(x.tipo)}</td><td>${money(x.precio_venta)}</td><td>${x.controla_inventario?"Sí":"No"}</td><td>${esc(x.productos?.producto||"—")}</td><td><button class="btn alt" onclick='editCatalog(${JSON.stringify(JSON.stringify(x))})'>Editar</button></td></tr>`).join("");
- content.innerHTML=`<div class="panel"><div class="head"><h2>Catálogo de productos</h2><button class="btn" onclick="catalogForm()">+ Nuevo producto</button></div>
- <div id="catForm" class="hidden"></div><div style="overflow:auto"><table><thead><tr><th>Código</th><th>Categoría</th><th>Producto / servicio</th><th>Tipo</th><th>Precio pred.</th><th>Controla inventario</th><th>Vinculado a</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+ window._inventoryForCatalog=inv||[]; window._catalogRows=cats||[]; window._catalogCategories=[...EJ_CATEGORIES,...(cats||[]).map(x=>x.categoria).filter(Boolean)];
+ const nums=(cats||[]).map(x=>/^\d+$/.test(String(x.codigo||''))?Number(x.codigo):0);window._nextCatalogCode=String(Math.max(0,...nums)+1).padStart(4,'0');
+ let rows=(cats||[]).map(x=>`<tr data-search="${esc([x.codigo,x.categoria,x.nombre,x.descripcion,x.tipo].join(' '))}"><td>${esc(x.codigo||"—")}</td><td>${esc(x.categoria||"—")}</td><td><b>${esc(x.nombre)}</b><br><small>${esc(x.descripcion||"")}</small></td><td>${esc(x.tipo)}</td><td>${money(x.precio_venta)}</td><td>${x.controla_inventario?"Sí":"No"}</td><td>${esc(x.productos?.producto||"—")}</td><td><button class="btn alt" onclick='editCatalog(${JSON.stringify(JSON.stringify(x))})'>Editar</button></td></tr>`).join("");
+ content.innerHTML=`<div class="panel"><div class="head"><h2>Catálogo de productos</h2><button class="btn" onclick="catalogForm()">+ Nuevo producto</button></div>${searchBox('catSearch','catTable','Buscar por código, categoría o producto...')}
+ <div id="catForm" class="hidden"></div><div style="overflow:auto"><table id="catTable"><thead><tr><th>Código</th><th>Categoría</th><th>Producto / servicio</th><th>Tipo</th><th>Precio pred.</th><th>Controla inventario</th><th>Vinculado a</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 function catalogForm(x=null){
  let inv=(window._inventoryForCatalog||[]).map(p=>`<option value="${p.id}" ${x?.producto_inventario_id===p.id?"selected":""}>${esc(p.codigo)} · ${esc(p.producto)} · stock ${p.existencia}</option>`).join("");
- catForm.classList.remove("hidden");
+ catForm.classList.remove("hidden"); const code=x?.codigo||window._nextCatalogCode||'0001';
  catForm.innerHTML=`<h3>${x?"Editar":"Nuevo"} producto del catálogo</h3><div class="grid">
- <div><label>Código</label><input id="catcode" value="${esc(x?.codigo||"")}"></div>
- <div><label>Categoría</label><input id="catcat" value="${esc(x?.categoria||"")}"></div>
+ <div><label>Código automático</label><input id="catcode" value="${esc(code)}" readonly style="background:#f2eee7;font-weight:700"><small>Se asigna en secuencia y no se puede editar.</small></div>
+ <div><label>Categoría</label><input id="catcat" list="categoryList" value="${esc(x?.categoria||"")}" placeholder="Selecciona o escribe una nueva"><datalist id="categoryList">${categoryOptions(x?.categoria||'')}</datalist><small>Si escribes una categoría nueva, quedará disponible en los próximos productos.</small></div>
  <div><label>Nombre</label><input id="catname" value="${esc(x?.nombre||"")}"></div>
  <div><label>Tipo</label><select id="cattype"><option ${x?.tipo==="Producto"?"selected":""}>Producto</option><option ${x?.tipo==="Servicio"?"selected":""}>Servicio</option></select></div>
  <div><label>Precio de venta predeterminado</label><input id="catprice" type="number" min="0" step=".01" value="${x?.precio_venta??""}"></div>
@@ -221,9 +229,11 @@ function catalogForm(x=null){
 function editCatalog(raw){catalogForm(JSON.parse(raw))}
 async function saveCatalog(id){
  let controls=catstock.value==="true";
- if(!catname.value.trim())return alert("Escribe el nombre.");
+ if(!catname.value.trim())return alert("Escribe el nombre."); if(!catcat.value.trim())return alert("Selecciona o escribe una categoría.");
  if(controls&&!catinv.value)return alert("Selecciona qué producto del inventario debe descontarse.");
- let payload={codigo:catcode.value.trim()||null,categoria:catcat.value.trim()||null,nombre:catname.value.trim(),descripcion:catdesc.value.trim()||null,tipo:cattype.value,precio_venta:Number(catprice.value||0),controla_inventario:controls,producto_inventario_id:controls?catinv.value:null,updated_at:new Date().toISOString(),updated_by:currentUser.id};
+ let cat=catcat.value.trim(); let existing=(window._catalogCategories||[]).find(x=>normalizeText(x)===normalizeText(cat)); if(existing)cat=existing;
+ let payload={categoria:cat,nombre:catname.value.trim(),descripcion:catdesc.value.trim()||null,tipo:cattype.value,precio_venta:Number(catprice.value||0),controla_inventario:controls,producto_inventario_id:controls?catinv.value:null,updated_at:new Date().toISOString(),updated_by:currentUser.id};
+ if(!id)payload.codigo=catcode.value;
  let q=id?sb.from("catalogo_productos").update(payload).eq("id",id):sb.from("catalogo_productos").insert({...payload,created_by:currentUser.id});
  let {error}=await q;if(error)return alert(error.message);await catalog();
 }
@@ -240,11 +250,11 @@ async function orders(){
  window._clients=clientsData||[]; window._catalog=productsData||[]; window._orders=ordersData||[];
  let rows=(ordersData||[]).map(o=>{
    let paid=(o.cobros||[]).reduce((s,c)=>s+Number(c.monto),0),bal=Math.max(Number(o.total)-paid,0);
-   return `<tr><td>${esc(o.numero)}</td><td>${esc(o.fecha)}</td><td>${esc(o.clientes?.nombre||"—")}</td><td>${esc(o.fecha_entrega||"—")}</td><td>${esc(o.estado)}</td><td>${money(o.total)}</td><td>${money(bal)}</td><td><button class="btn alt" onclick="viewOrder('${o.id}')">Ver / Editar</button></td></tr>`
+   return `<tr data-search="${esc([o.numero,o.fecha,o.telefono,o.instagram,o.clientes?.nombre,o.fecha_entrega,o.estado].join(' '))}"><td>${esc(o.numero)}</td><td>${esc(o.fecha)}</td><td>${esc(o.clientes?.nombre||"—")}</td><td>${esc(o.fecha_entrega||"—")}<br>${deliveryAlert(o.fecha_entrega,o.estado)}</td><td>${esc(o.estado)}</td><td>${money(o.total)}</td><td>${money(bal)}</td><td><button class="btn alt" onclick="viewOrder('${o.id}')">Ver / Editar</button></td></tr>`
  }).join("");
  content.innerHTML=`<div class="panel"><div class="head"><h2>Pedidos</h2><button class="btn" onclick="newOrder()">+ Nuevo pedido</button></div>
- <div id="orderForm" class="hidden"></div>
- <div style="overflow:auto"><table><thead><tr><th>Pedido</th><th>Fecha</th><th>Cliente</th><th>Entrega</th><th>Estado</th><th>Total</th><th>Saldo</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+ ${searchBox('orderSearch','orderTable','Buscar por pedido, cliente, celular o fecha...')}<div id="orderForm" class="hidden"></div>
+ <div style="overflow:auto"><table id="orderTable"><thead><tr><th>Pedido</th><th>Fecha</th><th>Cliente</th><th>Entrega</th><th>Estado</th><th>Total</th><th>Saldo</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 function newOrder(){
  orderLines=[];
@@ -252,7 +262,7 @@ function newOrder(){
  let products=(window._catalog||[]).filter(p=>!p.controla_inventario||Number(p.productos?.existencia)>0).map(p=>`<option value="${p.id}">${esc(p.codigo||"")} · ${esc(p.nombre)}${p.controla_inventario?` · stock ${p.productos?.existencia??0}`:" · servicio"}</option>`).join("");
  orderForm.classList.remove("hidden");
  orderForm.innerHTML=`<div class="grid">
- <div><label>Cliente</label><select id="oclient" onchange="fillClient()"><option value="">Seleccionar cliente</option>${clients}</select></div>
+ <div><label>Fecha del pedido</label><input value="${todayISO()}" readonly style="background:#f2eee7"></div><div><label>Cliente</label><select id="oclient" onchange="fillClient()"><option value="">Seleccionar cliente</option>${clients}</select></div>
  <div><label>Fecha de entrega</label><input id="odelivery" type="date"></div>
  <div><label>Teléfono</label><input id="ophone"></div><div><label>Instagram</label><input id="oig"></div>
  <div><label>Canal de venta</label><select id="ochannel"><option>WhatsApp</option><option>Instagram</option><option>Tienda</option><option>Otro</option></select></div>
@@ -419,9 +429,9 @@ async function quotations(){
  ]);
  if(error)return content.innerHTML=`<div class="panel">Error: ${esc(error.message)}</div>`;
  window._quotes=q||[];window._qclients=clientsData||[];window._qcatalog=catalogData||[];
- let rows=(q||[]).map(x=>`<tr><td>${esc(x.numero)}</td><td>${esc(x.fecha)}</td><td>${esc(x.clientes?.nombre||"—")}</td><td>${esc(x.valida_hasta||"—")}</td><td>${esc(x.estado)}</td><td>${money(x.total)}</td><td><button class="btn alt" onclick="viewQuote('${x.id}')">Ver / Editar</button></td></tr>`).join("");
+ let rows=(q||[]).map(x=>`<tr data-search="${esc([x.numero,x.fecha,x.clientes?.nombre,x.clientes?.telefono,x.clientes?.instagram,x.estado].join(' '))}"><td>${esc(x.numero)}</td><td>${esc(x.fecha)}</td><td>${esc(x.clientes?.nombre||"—")}</td><td>${esc(x.valida_hasta||"—")}</td><td>${esc(x.estado)}</td><td>${money(x.total)}</td><td><button class="btn alt" onclick="viewQuote('${x.id}')">Ver / Editar</button></td></tr>`).join("");
  content.innerHTML=`<div class="panel"><div class="head"><h2>Cotizaciones</h2><button class="btn" onclick="newQuote()">+ Nueva cotización</button></div>
- <div id="quoteForm" class="hidden"></div><div style="overflow:auto"><table><thead><tr><th>Número</th><th>Fecha</th><th>Cliente</th><th>Válida hasta</th><th>Estado</th><th>Total</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+ ${searchBox('quoteSearch','quoteTable','Buscar por cotización, cliente, celular o fecha...')}<div id="quoteForm" class="hidden"></div><div style="overflow:auto"><table id="quoteTable"><thead><tr><th>Número</th><th>Fecha</th><th>Cliente</th><th>Válida hasta</th><th>Estado</th><th>Total</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 function newQuote(){
  quoteLines=[];
@@ -519,11 +529,18 @@ function printQuote(id){
 }
 
 async function payments(){
- const {data,error}=await sb.from("pedidos").select("id,numero,fecha,total,clientes(nombre),cobros(monto,fecha,metodo_pago)").order("created_at",{ascending:false});
- if(error)return content.innerHTML=`<div class="panel">Error: ${esc(error.message)}</div>`;
- let total=0,collected=0,receivable=0;
- let rows=(data||[]).map(o=>{let paid=(o.cobros||[]).reduce((s,c)=>s+Number(c.monto),0),bal=Number(o.total)-paid;total+=Number(o.total);collected+=paid;receivable+=bal;return `<tr><td>${esc(o.numero)}</td><td>${esc(o.clientes?.nombre||"—")}</td><td>${money(o.total)}</td><td>${money(paid)}</td><td>${money(bal)}</td></tr>`}).join("");
- content.innerHTML=`<div class="cards"><div class="card">Ventas<div class="metric">${money(total)}</div></div><div class="card">Cobrado<div class="metric">${money(collected)}</div></div><div class="card">Por cobrar<div class="metric">${money(receivable)}</div></div></div><div class="panel"><h2>Cobros y saldos</h2><div style="overflow:auto"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Total</th><th>Cobrado</th><th>Saldo</th></tr></thead><tbody>${rows}</tbody></table></div><p style="color:var(--muted);font-size:13px">En esta fase el abono inicial se registra desde el pedido. El registro de abonos posteriores se añadirá a continuación.</p></div>`;
+ const {data,error}=await sb.from("pedidos").select("id,numero,fecha,total,telefono,clientes(nombre,telefono),cobros(monto,fecha,metodo_pago,referencia)").order("created_at",{ascending:false});
+ if(error)return content.innerHTML=`<div class="panel">Error: ${esc(error.message)}</div>`; window._paymentOrders=data||[];
+ renderPayments('all');
+}
+function renderPayments(period='all'){
+ const data=window._paymentOrders||[], today=todayISO(), now=new Date(), month=today.slice(0,7); const monday=new Date(now);monday.setDate(now.getDate()-((now.getDay()+6)%7));const weekStart=monday.toISOString().slice(0,10);
+ const inPeriod=d=>period==='all'||(period==='today'&&d===today)||(period==='week'&&d>=weekStart&&d<=today)||(period==='month'&&String(d||'').startsWith(month));
+ let total=0,collected=0,receivable=0,methods={'Efectivo':0,'Yappy':0,'Tarjeta':0,'Transferencia/ACH':0};
+ let rows=data.map(o=>{let allPaid=(o.cobros||[]).reduce((s,c)=>s+Number(c.monto),0),bal=Math.max(Number(o.total)-allPaid,0);total+=Number(o.total);receivable+=bal;(o.cobros||[]).filter(c=>inPeriod(c.fecha)).forEach(c=>{collected+=Number(c.monto);let k=c.metodo_pago||'Otro';if(methods[k]===undefined)methods[k]=0;methods[k]+=Number(c.monto)});return `<tr data-search="${esc([o.numero,o.fecha,o.clientes?.nombre,o.telefono,o.clientes?.telefono].join(' '))}"><td>${esc(o.numero)}</td><td>${esc(o.clientes?.nombre||'—')}</td><td>${money(o.total)}</td><td>${money(allPaid)}</td><td>${money(bal)}</td></tr>`}).join('');
+ content.innerHTML=`<div class="panel"><div class="head"><h2>Cobros</h2><select onchange="renderPayments(this.value)" style="max-width:220px"><option value="all" ${period==='all'?'selected':''}>Todos los cobros</option><option value="today" ${period==='today'?'selected':''}>Hoy</option><option value="week" ${period==='week'?'selected':''}>Esta semana</option><option value="month" ${period==='month'?'selected':''}>Este mes</option></select></div></div>
+ <div class="cards"><div class="card">Cobrado ${period==='all'?'':'en el período'}<div class="metric">${money(collected)}</div></div><div class="card">Efectivo<div class="metric">${money(methods['Efectivo'])}</div></div><div class="card">Yappy<div class="metric">${money(methods['Yappy'])}</div></div><div class="card">Tarjeta<div class="metric">${money(methods['Tarjeta'])}</div></div><div class="card">Transferencia/ACH<div class="metric">${money(methods['Transferencia/ACH'])}</div></div><div class="card">Por cobrar<div class="metric">${money(receivable)}</div></div></div>
+ <div class="panel"><h2>Cobros y saldos</h2>${searchBox('paymentSearch','paymentTable','Buscar por pedido, cliente, celular o fecha...')}<div style="overflow:auto"><table id="paymentTable"><thead><tr><th>Pedido</th><th>Cliente</th><th>Total</th><th>Cobrado</th><th>Saldo</th></tr></thead><tbody>${rows}</tbody></table></div><p style="color:var(--muted);font-size:13px">Los montos por método muestran únicamente el dinero efectivamente registrado en cada cobro.</p></div>`;
 }
 
 
