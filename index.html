@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.9</title>
+<title>EJ Inspiration | Gestión V25.10</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -16,7 +16,7 @@ main{padding:26px 30px}.top{display:flex;justify-content:space-between;align-ite
 .mobile-menu-btn,.menu-overlay{display:none}
 .product-thumb{width:54px;height:54px;object-fit:cover;border-radius:9px;border:1px solid var(--line);background:#fff;cursor:pointer}.photo-empty{width:54px;height:54px;border-radius:9px;border:1px dashed var(--line);display:grid;place-items:center;color:var(--muted);font-size:10px;text-align:center;background:#fff}.photo-preview{max-width:120px;max-height:120px;object-fit:cover;border-radius:10px;border:1px solid var(--line);margin:4px 0 12px}.photo-modal{position:fixed;inset:0;background:#000a;z-index:120;display:flex;align-items:center;justify-content:center;padding:24px}.photo-modal img{max-width:min(900px,95vw);max-height:88vh;border-radius:14px;background:white}.photo-modal button{position:absolute;top:18px;right:18px;border:0;border-radius:999px;width:42px;height:42px;font-size:22px;cursor:pointer}
 
-/* V25.9 · Inventario limpio + ficha rápida de producto */
+/* V25.10 · Inventario ajustado a escritorio + ficha rápida */
 .inventory-table-wrap{width:100%;max-width:100%;overflow:visible}
 #inventoryTable{width:100%;table-layout:fixed;font-size:14px}
 #inventoryTable th,#inventoryTable td{padding:12px 9px;vertical-align:middle;word-break:normal}
@@ -28,6 +28,30 @@ main{padding:26px 30px}.top{display:flex;justify-content:space-between;align-ite
 @media(max-width:1100px) and (min-width:801px){main{padding:20px 14px}.app{grid-template-columns:195px minmax(0,1fr)}#inventoryTable{font-size:13px}#inventoryTable th,#inventoryTable td{padding:10px 6px}#inventoryTable .product-thumb,#inventoryTable .photo-empty{width:52px;height:52px}}
 @media(max-width:800px){.inventory-table-wrap{overflow:visible!important}#inventoryTable{display:block;min-width:0!important;width:100%;font-size:13px}#inventoryTable thead{display:none}#inventoryTable tbody{display:grid;grid-template-columns:1fr;gap:12px}#inventoryTable tr{display:grid!important;grid-template-columns:76px minmax(0,1fr) minmax(0,1fr);gap:8px 10px;padding:12px;border:1px solid var(--line);border-radius:14px;background:#fffdf9;box-shadow:0 2px 8px #5d43220a}#inventoryTable td{display:block;border:0;padding:0;min-width:0;font-size:13px;overflow-wrap:anywhere}#inventoryTable td::before{content:attr(data-label);display:block;font-size:9px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:3px}#inventoryTable td:nth-child(1){grid-row:1 / span 2;grid-column:1;align-self:start}#inventoryTable td:nth-child(1)::before{display:none}#inventoryTable td:nth-child(1) .product-thumb,#inventoryTable td:nth-child(1) .photo-empty{width:72px!important;height:72px!important}#inventoryTable td:nth-child(4){grid-column:2 / 4;font-size:15px}#inventoryTable td:nth-child(9){grid-column:1 / 4;display:flex;gap:8px;margin-top:4px}#inventoryTable td:nth-child(9)::before{display:none}#inventoryTable td:nth-child(9) .btn{width:50%;min-height:40px;font-size:13px}.product-detail-top{grid-template-columns:1fr}.product-detail-photo,.product-detail-empty{width:100%;height:min(62vw,260px)}.product-detail-grid{grid-template-columns:1fr 1fr}.product-detail-card{padding:18px}.product-detail-card h2{padding-right:42px}}
 @media(max-width:430px){.product-detail-grid{grid-template-columns:1fr}}
+
+/* V25.10 · ajuste final de ancho de Inventario en escritorio */
+@media (min-width:801px){
+  .inventory-table-wrap{width:100%;max-width:100%;overflow-x:hidden;box-sizing:border-box}
+  #inventoryTable{width:100%!important;max-width:100%;table-layout:fixed!important;border-collapse:collapse;box-sizing:border-box}
+  #inventoryTable th,#inventoryTable td{box-sizing:border-box;padding:12px 7px;overflow:hidden}
+  #inventoryTable th:nth-child(1){width:6%!important}
+  #inventoryTable th:nth-child(2){width:8%!important}
+  #inventoryTable th:nth-child(3){width:11%!important}
+  #inventoryTable th:nth-child(4){width:29%!important}
+  #inventoryTable th:nth-child(5){width:8%!important}
+  #inventoryTable th:nth-child(6){width:9%!important}
+  #inventoryTable th:nth-child(7){width:9%!important}
+  #inventoryTable th:nth-child(8){width:9%!important}
+  #inventoryTable th:nth-child(9){width:11%!important}
+  #inventoryTable td:nth-child(2),#inventoryTable td:nth-child(3){overflow-wrap:break-word}
+  #inventoryTable td:nth-child(4){white-space:normal;overflow-wrap:break-word}
+  #inventoryTable td:nth-child(5),#inventoryTable td:nth-child(6),#inventoryTable td:nth-child(7){white-space:nowrap;text-align:center}
+  #inventoryTable td:nth-child(8){text-align:center;overflow:visible}
+  #inventoryTable td:nth-child(9){white-space:normal!important;overflow:visible}
+  #inventoryTable td:nth-child(9) .btn{display:block;width:100%;max-width:100%;margin:4px 0!important;padding:9px 5px!important;font-size:12px!important;box-sizing:border-box}
+  #inventoryTable .product-thumb,#inventoryTable .photo-empty{width:54px;height:54px;max-width:100%}
+}
+
 </style></head>
 <body>
 <section class="login" id="login">
