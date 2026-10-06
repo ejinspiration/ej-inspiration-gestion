@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.10</title>
+<title>EJ Inspiration | Gestión V25.11</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -561,7 +561,7 @@ let quoteLines=[];
 async function quotations(){
  const [{data:q,error},{data:clientsData},{data:catalogData}]=await Promise.all([
   sb.from("cotizaciones").select("*,clientes(nombre,cedula_ruc,telefono,instagram),cotizacion_detalles(*)").order("created_at",{ascending:false}),
-  sb.from("clientes").select("id,nombre,telefono,instagram").eq("activo",true).order("nombre"),
+  sb.from("clientes").select("id,nombre,cedula_ruc,telefono,instagram").eq("activo",true).order("nombre"),
   sb.from("catalogo_productos").select("id,codigo,nombre,precio_venta,controla_inventario,producto_inventario_id,productos(color,talla,medida,existencia)").eq("activo",true).order("nombre")
  ]);
  if(error)return content.innerHTML=`<div class="panel">Error: ${esc(error.message)}</div>`;
@@ -572,12 +572,12 @@ async function quotations(){
 }
 function newQuote(){
  quoteLines=[];
- let cs=(window._qclients||[]).map(c=>`<option value="${c.id}">${esc(c.nombre)}</option>`).join("");
+ let cs=(window._qclients||[]).map(c=>`<option value="${esc(c.nombre)}"></option>`).join("");
  let ps=(window._qcatalog||[]).map(p=>`<option value="${p.id}">${esc(p.codigo||"")} · ${esc(p.nombre)}</option>`).join("");
  quoteForm.classList.remove("hidden");
  quoteForm.innerHTML=`<h3>Nueva cotización</h3><div class="grid">
- <div><label>Cliente</label><select id="qclient" onchange="qFillClient()"><option value="">Seleccionar</option>${cs}</select></div>
- <div><label>Válida hasta</label><input id="qvalid" type="date"></div><div><label>Cliente / Razón social</label><input id="qname"></div><div><label>Cédula / RUC</label><input id="qruc"></div><div><label>Teléfono</label><input id="qphone"></div><div><label>Instagram</label><input id="qig"></div>
+ <div><label>Cliente / Razón social</label><input id="qname" list="qClientList" placeholder="Escribe o selecciona un cliente" oninput="qFillClient()" autocomplete="off"><datalist id="qClientList">${cs}</datalist><input id="qclient" type="hidden"></div>
+ <div><label>Válida hasta</label><input id="qvalid" type="date"></div><div><label>Cédula / RUC</label><input id="qruc"></div><div><label>Teléfono</label><input id="qphone"></div><div><label>Instagram</label><input id="qig"></div>
  <div><label>Producto / servicio</label><select id="qprod" onchange="qFillPrice()"><option value="">Seleccionar</option>${ps}</select></div>
  <div><label>Cantidad</label><input id="qqty" type="number" min=".01" step=".01" value="1"></div>
  <div><label>Precio unitario</label><input id="qprice" type="number" min=".01" step=".01"><button type="button" class="btn alt" style="margin-top:8px" onclick="priceCalculator(true)">Calcular precio</button></div>
@@ -588,7 +588,26 @@ function newQuote(){
  <button class="btn" onclick="saveQuote()">Guardar cotización</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0">`;
  qRenderLines();
 }
-function qFillClient(){let c=(window._qclients||[]).find(x=>x.id===qclient.value);if(!c)return;qname.value=c.nombre||"";qruc.value=c.cedula_ruc||"";qphone.value=c.telefono||"";qig.value=c.instagram||""}
+function normClient(v){return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().replace(/\s+/g," ").toLowerCase()}
+function qFillClient(){
+ let c=(window._qclients||[]).find(x=>normClient(x.nombre)===normClient(qname.value));
+ qclient.value=c?.id||"";
+ if(c){qruc.value=c.cedula_ruc||"";qphone.value=c.telefono||"";qig.value=c.instagram||""}
+}
+async function resolveQuoteClient(){
+ const nombre=qname.value.trim(), cedula=qruc.value.trim(), telefono=qphone.value.trim(), instagram=qig.value.trim();
+ if(!nombre)throw new Error("Escribe el nombre del cliente.");
+ let clients=window._qclients||[];
+ let c=clients.find(x=>qclient.value&&x.id===qclient.value) || clients.find(x=>cedula&&x.cedula_ruc&&normClient(x.cedula_ruc)===normClient(cedula)) || clients.find(x=>telefono&&x.telefono&&normClient(x.telefono)===normClient(telefono)) || clients.find(x=>normClient(x.nombre)===normClient(nombre));
+ if(!c){
+   const {data,error}=await sb.from("clientes").insert({nombre,cedula_ruc:cedula||null,telefono:telefono||null,instagram:instagram||null,activo:true,created_by:currentUser.id}).select("id,nombre,cedula_ruc,telefono,instagram").single();
+   if(error)throw error; c=data;
+ }else{
+   const patch={}; if(nombre&&nombre!==c.nombre)patch.nombre=nombre; if(cedula&&!c.cedula_ruc)patch.cedula_ruc=cedula; if(telefono&&!c.telefono)patch.telefono=telefono; if(instagram&&!c.instagram)patch.instagram=instagram;
+   if(Object.keys(patch).length){const {data,error}=await sb.from("clientes").update(patch).eq("id",c.id).select("id,nombre,cedula_ruc,telefono,instagram").single();if(error)throw error;c=data}
+ }
+ qclient.value=c.id; return c.id;
+}
 function qFillPrice(){let p=(window._qcatalog||[]).find(x=>x.id===qprod.value);if(p)qprice.value=Number(p.precio_venta||0).toFixed(2)}
 function qAddLine(){
  let p=(window._qcatalog||[]).find(x=>x.id===qprod.value),qty=Number(qqty.value||0),price=Number(qprice.value||0);
@@ -602,8 +621,9 @@ function qRenderLines(){
  qLines.innerHTML=quoteLines.length?`<table><thead><tr><th>Producto / servicio</th><th>Cant.</th><th>Precio</th><th>Total</th><th></th></tr></thead><tbody>${quoteLines.map((x,i)=>`<tr><td>${esc(x.descripcion)}${x.personalizacion?`<br><small>${esc(x.personalizacion)}</small>`:""}</td><td>${x.cantidad}</td><td>${money(x.precio_unitario)}</td><td>${money(x.cantidad*x.precio_unitario)}</td><td><button class="btn alt" onclick="quoteLines.splice(${i},1);qRenderLines()">Quitar</button></td></tr>`).join("")}</tbody></table><p style="text-align:right"><b>Subtotal:</b> ${money(sub)} &nbsp; <b>Descuento:</b> ${money(d)} &nbsp; <b>Total:</b> ${money(tot)}</p>`:"<p style='color:var(--muted)'>Agrega los productos o servicios a cotizar.</p>";
 }
 async function saveQuote(){
- if(!qclient.value)return alert("Selecciona un cliente.");if(!qvalid.value)return alert("Indica hasta cuándo es válida.");if(!quoteLines.length)return alert("Agrega al menos una línea.");
- const {data,error}=await sb.rpc("registrar_cotizacion",{p_cliente_id:qclient.value,p_valida_hasta:qvalid.value,p_observaciones:qnotes.value||null,p_descuento:Number(qdiscount.value||0),p_detalles:quoteLines});
+ if(!qname.value.trim())return alert("Escribe o selecciona el cliente.");if(!qvalid.value)return alert("Indica hasta cuándo es válida.");if(!quoteLines.length)return alert("Agrega al menos una línea.");
+ let clientId; try{clientId=await resolveQuoteClient()}catch(e){return alert("No se pudo guardar el cliente: "+e.message)}
+ const {data,error}=await sb.rpc("registrar_cotizacion",{p_cliente_id:clientId,p_valida_hasta:qvalid.value,p_observaciones:qnotes.value||null,p_descuento:Number(qdiscount.value||0),p_detalles:quoteLines});
  if(error)return alert("No se pudo guardar: "+error.message);
  await sb.from("cotizaciones").update({cliente_nombre:qname.value.trim()||null,cliente_cedula_ruc:qruc.value.trim()||null,cliente_telefono:qphone.value.trim()||null,cliente_instagram:qig.value.trim()||null}).eq("id",data.id);
  alert(`Cotización ${data.numero} guardada. Total: ${money(data.total)}`);await quotations();
