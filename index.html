@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.14</title>
+<title>EJ Inspiration | Gestión V25.15</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -405,10 +405,11 @@ function newOrder(){
  <div><label>Canal de venta</label><select id="ochannel"><option>WhatsApp</option><option>Instagram</option><option>Tienda</option><option>Otro</option></select></div>
  <div><label>Descuento general ($)</label><input id="odiscount" type="number" min="0" step=".01" value="0" oninput="renderLines()"></div></div>
  <hr style="border:0;border-top:1px solid var(--line);margin:12px 0">
- <h3>Productos</h3><div class="grid"><div><label>Producto</label><select id="oprod" onchange="fillCatalogPrice()"><option value="">Seleccionar</option>${products}</select></div>
+ <h3>Productos</h3><div class="grid"><div><label>Producto</label><select id="oprod" onchange="fillCatalogPrice()"><option value="">Seleccionar</option><option value="__manual__">+ Agregar producto manual</option>${products}</select></div>
  <div><label>Cantidad</label><input id="oqty" type="number" min=".01" step=".01" value="1"></div>
  <div><label>Precio unitario de venta</label><input id="oprice" type="number" min="0" step=".01"></div>
  <div><label>Personalización</label><input id="opers"></div></div>
+ <div id="omanualBox" class="hidden" style="margin-top:10px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fffaf3"><div class="grid"><div><label>Nombre del producto manual</label><input id="omanualName" placeholder="Ej.: Llavero personalizado"></div><div style="display:flex;align-items:end"><label style="display:flex;gap:8px;align-items:center;margin:0"><input id="omanualSave" type="checkbox" style="width:auto"> Guardar este producto en el Catálogo para futuras ventas</label></div></div></div>
  <button class="btn alt" onclick="addOrderLine()">Agregar producto</button>
  <div id="lines" style="margin:14px 0"></div>
  <div class="grid"><div><label>Abono inicial</label><input id="odeposit" type="number" min="0" step=".01" value="0"></div>
@@ -438,27 +439,27 @@ async function resolveOrderClient(){
  oclient.value=c.id;return c.id;
 }
 function fillCatalogPrice(){
+ const manual=oprod.value==="__manual__";
+ document.getElementById("omanualBox")?.classList.toggle("hidden",!manual);
+ if(manual){oprice.value="";document.getElementById("omanualName")?.focus();return;}
  let p=(window._catalog||[]).find(x=>x.id===oprod.value);
  if(p)oprice.value=Number(p.precio_venta||0).toFixed(2);
 }
 function addOrderLine(){
+ const isManual=oprod.value==="__manual__";
  let c=(window._catalog||[]).find(x=>x.id===oprod.value),q=Number(oqty.value||0),pr=Number(oprice.value);
- if(!c)return alert("Selecciona un producto o servicio.");
+ if(!isManual&&!c)return alert("Selecciona un producto o servicio.");
  if(q<=0)return alert("La cantidad debe ser mayor que cero.");
  if(!Number.isFinite(pr)||pr<=0)return alert("Indica un precio de venta mayor que $0.00.");
- if(c.controla_inventario && q>Number(c.productos?.existencia||0))return alert(`Solo hay ${c.productos?.existencia||0} unidades disponibles.`);
- orderLines.push({
-   catalogo_producto_id:c.id,
-   producto_id:c.controla_inventario?c.producto_inventario_id:null,
-   descripcion:c.nombre,
-   color:c.productos?.color||"",
-   talla:c.productos?.talla||"",
-   personalizacion:opers.value.trim(),
-   cantidad:q,precio_unitario:pr,descuento:0,
-   controla_inventario:c.controla_inventario,
-   stock:c.productos?.existencia??null
- });
- oprod.value="";oqty.value=1;oprice.value="";opers.value="";renderLines();
+ if(isManual){
+   const name=(document.getElementById("omanualName")?.value||"").trim();
+   if(!name)return alert("Escribe el nombre del producto manual.");
+   orderLines.push({catalogo_producto_id:null,producto_id:null,descripcion:name,color:"",talla:"",personalizacion:opers.value.trim(),cantidad:q,precio_unitario:pr,descuento:0,controla_inventario:false,stock:null,guardar_catalogo:!!document.getElementById("omanualSave")?.checked});
+ }else{
+   if(c.controla_inventario && q>Number(c.productos?.existencia||0))return alert(`Solo hay ${c.productos?.existencia||0} unidades disponibles.`);
+   orderLines.push({catalogo_producto_id:c.id,producto_id:c.controla_inventario?c.producto_inventario_id:null,descripcion:c.nombre,color:c.productos?.color||"",talla:c.productos?.talla||"",personalizacion:opers.value.trim(),cantidad:q,precio_unitario:pr,descuento:0,controla_inventario:c.controla_inventario,stock:c.productos?.existencia??null});
+ }
+ oprod.value="";oqty.value=1;oprice.value="";opers.value="";if(document.getElementById("omanualName"))omanualName.value="";if(document.getElementById("omanualSave"))omanualSave.checked=false;document.getElementById("omanualBox")?.classList.add("hidden");renderLines();
 }
 function renderLines(){
  if(!document.getElementById("lines"))return;
@@ -466,15 +467,29 @@ function renderLines(){
  lines.innerHTML=orderLines.length?`<table><thead><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Total</th><th></th></tr></thead><tbody>${orderLines.map((x,i)=>`<tr><td>${esc(x.descripcion)}${x.personalizacion?`<br><small>${esc(x.personalizacion)}</small>`:""}</td><td>${x.cantidad}</td><td>${money(x.precio_unitario)}</td><td>${money(x.cantidad*x.precio_unitario)}</td><td><button class="btn alt" onclick="removeLine(${i})">Quitar</button></td></tr>`).join("")}</tbody></table><p style="text-align:right"><b>Subtotal:</b> ${money(subtotal)} &nbsp; <b>Total:</b> ${money(total)}</p>`:"<p style='color:var(--muted)'>Aún no has agregado productos.</p>";
 }
 function removeLine(i){orderLines.splice(i,1);renderLines()}
+async function saveManualCatalogItems(lines){
+ const pending=lines.filter(x=>x.guardar_catalogo&&!x.catalogo_producto_id);
+ for(const x of pending){
+   const existing=(window._catalog||window._qcatalog||[]).find(p=>normClient(p.nombre)===normClient(x.descripcion));
+   if(existing){x.catalogo_producto_id=existing.id;continue;}
+   const pool=[...(window._catalog||[]),...(window._qcatalog||[])];
+   const max=Math.max(0,...pool.map(p=>/^\d+$/.test(String(p.codigo||""))?Number(p.codigo):0));
+   const codigo=String(max+1).padStart(4,"0");
+   const payload={codigo,categoria:"Otros",nombre:x.descripcion,descripcion:null,tipo:"Producto",precio_venta:Number(x.precio_unitario||0),controla_inventario:false,producto_inventario_id:null,activo:true,created_by:currentUser.id,updated_by:currentUser.id,updated_at:new Date().toISOString()};
+   const {data,error}=await sb.from("catalogo_productos").insert(payload).select("id,codigo,nombre,precio_venta,controla_inventario,producto_inventario_id").single();
+   if(error)throw error;x.catalogo_producto_id=data.id;
+   if(window._catalog)window._catalog.push(data);if(window._qcatalog)window._qcatalog.push(data);
+ }
+}
 async function saveOrder(){
  if(!oname.value.trim())return alert("Escribe o selecciona el cliente."); if(!odelivery.value)return alert("Indica la fecha de entrega."); if(!orderLines.length)return alert("Agrega al menos un producto.");
  let dep=Number(odeposit.value||0);if(dep>0&&!opay.value)return alert("Selecciona el método de pago.");
  orderMsg.textContent="Guardando pedido...";
- let clientId;try{clientId=await resolveOrderClient()}catch(e){orderMsg.textContent="";return alert("No se pudo guardar el cliente: "+e.message)}
+ let clientId;try{clientId=await resolveOrderClient();await saveManualCatalogItems(orderLines)}catch(e){orderMsg.textContent="";return alert("No se pudo guardar: "+e.message)}
  const {data,error}=await sb.rpc("registrar_pedido",{
    p_cliente_id:clientId,p_telefono:ophone.value,p_instagram:oig.value,p_fecha_entrega:odelivery.value,
    p_canal_venta:ochannel.value,p_observaciones:onotes.value,p_descuento:Number(odiscount.value||0),
-   p_detalles:orderLines.map(({stock,controla_inventario,...x})=>x),p_abono:dep,p_metodo_pago:opay.value||null,p_referencia_pago:oref.value||null
+   p_detalles:orderLines.map(({stock,controla_inventario,guardar_catalogo,...x})=>x),p_abono:dep,p_metodo_pago:opay.value||null,p_referencia_pago:oref.value||null
  });
  if(error){orderMsg.textContent="No se pudo guardar: "+error.message;return}
  alert(`Pedido ${data.numero} guardado correctamente.\nTotal: ${money(data.total)}\nAbono: ${money(data.abono)}\nSaldo: ${money(data.saldo)}`);
@@ -594,10 +609,11 @@ function newQuote(){
  quoteForm.innerHTML=`<h3>Nueva cotización</h3><div class="grid">
  <div><label>Cliente / Razón social</label><input id="qname" list="qClientList" placeholder="Escribe o selecciona un cliente" oninput="qFillClient()" autocomplete="off"><datalist id="qClientList">${cs}</datalist><input id="qclient" type="hidden"></div>
  <div><label>Válida hasta</label><input id="qvalid" type="date"></div><div><label>Cédula / RUC</label><input id="qruc"></div><div><label>Teléfono</label><input id="qphone"></div><div><label>Instagram</label><input id="qig"></div>
- <div><label>Producto / servicio</label><select id="qprod" onchange="qFillPrice()"><option value="">Seleccionar</option>${ps}</select></div>
+ <div><label>Producto / servicio</label><select id="qprod" onchange="qFillPrice()"><option value="">Seleccionar</option><option value="__manual__">+ Agregar producto manual</option>${ps}</select></div>
  <div><label>Cantidad</label><input id="qqty" type="number" min=".01" step=".01" value="1"></div>
  <div><label>Precio unitario</label><input id="qprice" type="number" min=".01" step=".01"><button type="button" class="btn alt" style="margin-top:8px" onclick="priceCalculator(true)">Calcular precio</button></div>
  <div><label>Personalización</label><input id="qpers"></div></div>
+ <div id="qmanualBox" class="hidden" style="margin-top:10px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fffaf3"><div class="grid"><div><label>Nombre del producto manual</label><input id="qmanualName" placeholder="Ej.: Llavero personalizado"></div><div style="display:flex;align-items:end"><label style="display:flex;gap:8px;align-items:center;margin:0"><input id="qmanualSave" type="checkbox" style="width:auto"> Guardar este producto en el Catálogo para futuras ventas</label></div></div></div>
  <button class="btn alt" onclick="qAddLine()">+ Agregar producto</button><div id="qLines" style="margin:14px 0"></div>
  <div class="grid"><div><label>Descuento general</label><input id="qdiscount" type="number" min="0" step=".01" value="0" oninput="qRenderLines()"></div>
  <div><label>Observaciones / condiciones</label><input id="qnotes" placeholder="Ej.: 50% para iniciar producción"></div></div>
@@ -624,12 +640,13 @@ async function resolveQuoteClient(){
  }
  qclient.value=c.id; return c.id;
 }
-function qFillPrice(){let p=(window._qcatalog||[]).find(x=>x.id===qprod.value);if(p)qprice.value=Number(p.precio_venta||0).toFixed(2)}
+function qFillPrice(){const manual=qprod.value==="__manual__";document.getElementById("qmanualBox")?.classList.toggle("hidden",!manual);if(manual){qprice.value="";document.getElementById("qmanualName")?.focus();return;}let p=(window._qcatalog||[]).find(x=>x.id===qprod.value);if(p)qprice.value=Number(p.precio_venta||0).toFixed(2)}
 function qAddLine(){
- let p=(window._qcatalog||[]).find(x=>x.id===qprod.value),qty=Number(qqty.value||0),price=Number(qprice.value||0);
- if(!p)return alert("Selecciona un producto o servicio.");if(qty<=0||price<=0)return alert("Cantidad y precio deben ser mayores que cero.");
- quoteLines.push({catalogo_producto_id:p.id,producto_id:p.controla_inventario?p.producto_inventario_id:null,descripcion:p.nombre,color:p.productos?.color||null,talla:p.productos?.talla||null,personalizacion:qpers.value.trim()||null,cantidad:qty,precio_unitario:price,descuento:0});
- qprod.value="";qqty.value=1;qprice.value="";qpers.value="";qRenderLines();
+ const isManual=qprod.value==="__manual__";let p=(window._qcatalog||[]).find(x=>x.id===qprod.value),qty=Number(qqty.value||0),price=Number(qprice.value||0);
+ if(!isManual&&!p)return alert("Selecciona un producto o servicio.");if(qty<=0||price<=0)return alert("Cantidad y precio deben ser mayores que cero.");
+ if(isManual){const name=(document.getElementById("qmanualName")?.value||"").trim();if(!name)return alert("Escribe el nombre del producto manual.");quoteLines.push({catalogo_producto_id:null,producto_id:null,descripcion:name,color:null,talla:null,personalizacion:qpers.value.trim()||null,cantidad:qty,precio_unitario:price,descuento:0,guardar_catalogo:!!document.getElementById("qmanualSave")?.checked});}
+ else quoteLines.push({catalogo_producto_id:p.id,producto_id:p.controla_inventario?p.producto_inventario_id:null,descripcion:p.nombre,color:p.productos?.color||null,talla:p.productos?.talla||null,personalizacion:qpers.value.trim()||null,cantidad:qty,precio_unitario:price,descuento:0});
+ qprod.value="";qqty.value=1;qprice.value="";qpers.value="";if(document.getElementById("qmanualName"))qmanualName.value="";if(document.getElementById("qmanualSave"))qmanualSave.checked=false;document.getElementById("qmanualBox")?.classList.add("hidden");qRenderLines();
 }
 function qRenderLines(){
  if(!document.getElementById("qLines"))return;
@@ -638,8 +655,9 @@ function qRenderLines(){
 }
 async function saveQuote(){
  if(!qname.value.trim())return alert("Escribe o selecciona el cliente.");if(!qvalid.value)return alert("Indica hasta cuándo es válida.");if(!quoteLines.length)return alert("Agrega al menos una línea.");
- let clientId; try{clientId=await resolveQuoteClient()}catch(e){return alert("No se pudo guardar el cliente: "+e.message)}
- const {data,error}=await sb.rpc("registrar_cotizacion",{p_cliente_id:clientId,p_valida_hasta:qvalid.value,p_observaciones:qnotes.value||null,p_descuento:Number(qdiscount.value||0),p_detalles:quoteLines});
+ let clientId; try{clientId=await resolveQuoteClient();await saveManualCatalogItems(quoteLines)}catch(e){return alert("No se pudo guardar: "+e.message)}
+ const cleanQuoteLines=quoteLines.map(({guardar_catalogo,...x})=>x);
+ const {data,error}=await sb.rpc("registrar_cotizacion",{p_cliente_id:clientId,p_valida_hasta:qvalid.value,p_observaciones:qnotes.value||null,p_descuento:Number(qdiscount.value||0),p_detalles:cleanQuoteLines});
  if(error)return alert("No se pudo guardar: "+error.message);
  await sb.from("cotizaciones").update({cliente_nombre:qname.value.trim()||null,cliente_cedula_ruc:qruc.value.trim()||null,cliente_telefono:qphone.value.trim()||null,cliente_instagram:qig.value.trim()||null}).eq("id",data.id);
  alert(`Cotización ${data.numero} guardada. Total: ${money(data.total)}`);await quotations();
