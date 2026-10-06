@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.15</title>
+<title>EJ Inspiration | Gestión V25.16</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -515,7 +515,7 @@ async function viewOrder(id){
  <label>Observaciones</label><input id="enotes" value="${esc(o.observaciones||"")}">
  <button class="btn" onclick="saveOrderHeader('${o.id}','${esc(o.estado)}')">Guardar cambios</button>
  <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
- <div class="head"><h3>Productos / servicios</h3><button class="btn alt" onclick="openLinesEditor('${o.id}')">Editar productos</button></div>
+ <div class="head"><h3>Productos / servicios</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn alt" onclick="printOrder('${o.id}')">Imprimir / PDF</button><button class="btn alt" onclick="openLinesEditor('${o.id}')">Editar productos</button></div></div>
  <div style="overflow:auto"><table><thead><tr><th>Descripción</th><th>Cant.</th><th>Precio</th><th>Personalización</th><th>Total</th></tr></thead><tbody>${details}</tbody></table></div>
  <div id="linesEditor"></div>
  <p style="text-align:right"><b>Total:</b> ${money(o.total)} &nbsp; <b>Cobrado:</b> ${money(paid)} &nbsp; <b>Saldo:</b> ${money(bal)}</p>
@@ -530,43 +530,83 @@ async function viewOrder(id){
 
 function lineEditorRow(line={}){
  let cats=(window._catalog||[]).map(c=>`<option value="${c.id}" ${c.id===line.catalogo_producto_id?"selected":""}>${esc(c.codigo||"")} · ${esc(c.nombre)}</option>`).join("");
- return `<div class="v12line" style="display:grid;grid-template-columns:2fr .7fr .9fr 1.6fr auto;gap:8px;align-items:end;margin:8px 0">
- <div><label>Producto / servicio</label><select class="lcatalog" onchange="fillLinePrice(this)"><option value="">Seleccionar</option>${cats}</select></div>
+ const manual=!line.catalogo_producto_id && !!line.descripcion;
+ return `<div class="v12line" data-original-desc="${esc(line.descripcion||"")}" style="padding:12px;border:1px solid var(--line);border-radius:12px;margin:8px 0;background:#fff">
+ <div style="display:grid;grid-template-columns:2fr .7fr .9fr 1.6fr auto;gap:8px;align-items:end">
+ <div><label>Producto / servicio</label><select class="lcatalog" onchange="editLineProductChanged(this)"><option value="">Seleccionar</option><option value="__manual__" ${manual?'selected':''}>+ Agregar producto manual</option>${cats}</select></div>
  <div><label>Cant.</label><input class="lqty" type="number" min=".01" step=".01" value="${Number(line.cantidad||1)}"></div>
  <div><label>Precio</label><input class="lprice" type="number" min=".01" step=".01" value="${Number(line.precio_unitario||0)}"></div>
  <div><label>Personalización</label><input class="lpersonal" value="${esc(line.personalizacion||"")}"></div>
- <button class="btn alt" onclick="this.closest('.v12line').remove()">Quitar</button></div>`;
+ <button class="btn alt" onclick="this.closest('.v12line').remove()">Quitar</button></div>
+ <div class="lmanualbox ${manual?'':'hidden'}" style="margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fffaf3">
+ <div class="grid"><div><label>Nombre del producto manual</label><input class="lmanualname" value="${esc(manual?line.descripcion||'':'')}" placeholder="Ej.: Portarretrato personalizado"></div>
+ <div style="display:flex;align-items:end"><label style="display:flex;gap:8px;align-items:center;margin:0"><input class="lmanualsave" type="checkbox" style="width:auto"> Agregar este producto al Catálogo</label></div></div></div>
+ </div>`;
+}
+function editLineProductChanged(sel){
+ const row=sel.closest('.v12line'), manual=sel.value==='__manual__';
+ row.querySelector('.lmanualbox')?.classList.toggle('hidden',!manual);
+ if(manual){if(!row.querySelector('.lmanualname').value)row.querySelector('.lmanualname').value=row.dataset.originalDesc||'';return;}
+ fillLinePrice(sel);
 }
 function fillLinePrice(sel){
  const c=(window._catalog||[]).find(x=>x.id===sel.value), row=sel.closest(".v12line");
- if(c && Number(row.querySelector(".lprice").value||0)<=0) row.querySelector(".lprice").value=Number(c.precio_venta||0).toFixed(2);
+ if(c) row.querySelector(".lprice").value=Number(c.precio_venta||0).toFixed(2);
 }
 function openLinesEditor(id){
  const o=(window._orders||[]).find(x=>x.id===id); if(!o)return;
  linesEditor.innerHTML=`<div class="panel" style="margin-top:12px"><h3>Editar líneas del pedido</h3>
- <p style="color:var(--muted)">Puedes cambiar producto/servicio, cantidad, precio o personalización. El inventario físico se ajustará por la diferencia.</p>
+ <p style="color:var(--muted)">Puedes editar productos del catálogo o productos manuales. Si un producto manual quieres conservarlo para futuras ventas, marca “Agregar este producto al Catálogo”.</p>
  <div id="editLines">${(o.pedido_detalles||[]).map(lineEditorRow).join("")}</div>
  <button class="btn alt" onclick="editLines.insertAdjacentHTML('beforeend',lineEditorRow())">+ Agregar línea</button>
  <button class="btn" onclick="saveOrderLines('${id}')">Guardar productos</button></div>`;
+}
+async function saveManualCatalogFromEdit(name,price){
+ const norm=name.trim().toLowerCase();
+ const existing=(window._catalog||[]).find(c=>(c.nombre||'').trim().toLowerCase()===norm);
+ if(existing)return existing.id;
+ const code='MAN-'+Date.now().toString().slice(-6);
+ const payload={codigo:code,categoria:'MANUAL',nombre:name.trim(),descripcion:'Agregado desde edición de pedido',tipo:'Producto',precio_venta:Number(price||0),controla_inventario:false,activo:true,created_by:currentUser.id};
+ const {data,error}=await sb.from('catalogo_productos').insert(payload).select('id').single();
+ if(error)throw error; return data.id;
 }
 async function saveOrderLines(id){
  const rows=[...document.querySelectorAll("#editLines .v12line")];
  if(!rows.length)return alert("El pedido debe tener al menos un producto o servicio.");
  let lines=[];
- for(const r of rows){
-   const catalogo_producto_id=r.querySelector(".lcatalog").value;
+ try{
+  for(const r of rows){
+   let catalogo_producto_id=r.querySelector(".lcatalog").value;
    const cantidad=Number(r.querySelector(".lqty").value||0), precio_unitario=Number(r.querySelector(".lprice").value||0);
    const personalizacion=r.querySelector(".lpersonal").value||null;
-   if(!catalogo_producto_id)return alert("Selecciona el producto o servicio en todas las líneas.");
+   let descripcion='';
    if(cantidad<=0)return alert("La cantidad debe ser mayor que cero.");
    if(precio_unitario<=0)return alert("El precio debe ser mayor que cero.");
-   lines.push({catalogo_producto_id,cantidad,precio_unitario,personalizacion});
- }
+   if(catalogo_producto_id==='__manual__'){
+     descripcion=(r.querySelector('.lmanualname').value||'').trim();
+     if(!descripcion)return alert('Escribe el nombre del producto manual.');
+     if(r.querySelector('.lmanualsave').checked)catalogo_producto_id=await saveManualCatalogFromEdit(descripcion,precio_unitario);
+     else catalogo_producto_id=null;
+   }else{
+     if(!catalogo_producto_id)return alert("Selecciona un producto o usa + Agregar producto manual.");
+     descripcion=(window._catalog||[]).find(c=>c.id===catalogo_producto_id)?.nombre||'';
+   }
+   lines.push({catalogo_producto_id,descripcion,cantidad,precio_unitario,personalizacion});
+  }
+ }catch(e){return alert('No se pudo agregar al catálogo: '+e.message)}
  if(!confirm("¿Guardar los cambios de productos de este pedido?"))return;
  const {data,error}=await sb.rpc("editar_pedido_lineas",{p_pedido_id:id,p_lineas:lines});
  if(error)return alert("No se pudo editar: "+error.message);
  alert(`Pedido actualizado. Nuevo total: ${money(data.total)} · Saldo: ${money(data.saldo)}`);
  await orders();
+}
+function printOrder(id){
+ const o=(window._orders||[]).find(x=>x.id===id); if(!o)return;
+ const paid=(o.cobros||[]).reduce((s,c)=>s+Number(c.monto||0),0), bal=Math.max(0,Number(o.total||0)-paid);
+ const rows=(o.pedido_detalles||[]).map(d=>`<tr><td>${esc(d.descripcion||'')}</td><td>${Number(d.cantidad||0)}</td><td>${money(d.precio_unitario)}</td><td>${esc(d.personalizacion||'—')}</td><td>${money(d.total??Number(d.cantidad||0)*Number(d.precio_unitario||0))}</td></tr>`).join('');
+ const pays=(o.cobros||[]).map(c=>`<tr><td>${esc(c.fecha||'')}</td><td>${esc(c.metodo_pago||'')}</td><td>${esc(c.referencia||'—')}</td><td>${money(c.monto)}</td></tr>`).join('');
+ const w=window.open('','_blank'); if(!w)return alert('Permite ventanas emergentes para generar el PDF.');
+ w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(o.numero)} - EJ Inspiration</title><style>body{font-family:Arial,sans-serif;color:#2d2119;margin:36px}h1{margin:0;font-family:Georgia,serif}.top{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #5b3826;padding-bottom:16px;margin-bottom:20px}.brand{font-size:13px;color:#765b49}.box{border:1px solid #ddcdbd;border-radius:12px;padding:14px;margin:14px 0}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{padding:9px;border-bottom:1px solid #e8ddd2;text-align:left;font-size:13px}th{font-size:11px;text-transform:uppercase;color:#765b49}.tot{text-align:right;font-size:15px;line-height:1.8}.noprint{text-align:center;margin-top:25px}@media print{.noprint{display:none}body{margin:18mm}}</style></head><body><div class="top"><div><h1>EJ Inspiration</h1><div class="brand">Detalles personalizados para tus momentos especiales</div></div><div style="text-align:right"><b>PEDIDO ${esc(o.numero)}</b><br>Fecha: ${esc(o.fecha||'—')}<br>Entrega: ${esc(o.fecha_entrega||'—')}</div></div><div class="box"><b>Cliente:</b> ${esc(o.clientes?.nombre||'—')}<br><b>Teléfono:</b> ${esc(o.telefono||'—')} &nbsp; <b>Instagram:</b> ${esc(o.instagram||'—')}<br><b>Canal:</b> ${esc(o.canal_venta||'—')}</div><table><thead><tr><th>Descripción</th><th>Cant.</th><th>Precio</th><th>Personalización</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table><div class="tot"><b>Total:</b> ${money(o.total)}<br><b>Abonado:</b> ${money(paid)}<br><b>Saldo:</b> ${money(bal)}</div>${pays?`<div class="box"><b>Pagos registrados</b><table><thead><tr><th>Fecha</th><th>Método</th><th>Referencia</th><th>Monto</th></tr></thead><tbody>${pays}</tbody></table></div>`:''}${o.observaciones?`<div class="box"><b>Observaciones:</b><br>${esc(o.observaciones)}</div>`:''}<p class="noprint"><button onclick="window.print()" style="padding:12px 20px">Imprimir / Guardar como PDF</button></p></body></html>`);w.document.close();
 }
 
 async function saveOrderHeader(id,oldStatus){
