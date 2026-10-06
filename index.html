@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.13</title>
+<title>EJ Inspiration | Gestión V25.14</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -399,7 +399,7 @@ function newOrder(){
  let products=(window._catalog||[]).filter(p=>!p.controla_inventario||Number(p.productos?.existencia)>0).map(p=>`<option value="${p.id}">${esc(p.codigo||"")} · ${esc(p.nombre)}${p.controla_inventario?` · stock ${p.productos?.existencia??0}`:" · servicio"}</option>`).join("");
  orderForm.classList.remove("hidden");
  orderForm.innerHTML=`<div class="grid">
- <div><label>Fecha del pedido</label><input value="${todayISO()}" readonly style="background:#f2eee7"></div><div><label>Cliente / Razón social</label><input id="oname" list="oClientList" placeholder="Escribe o selecciona un cliente" oninput="fillClient()" autocomplete="off"><datalist id="oClientList">${(window._clients||[]).map(c=>`<option value="${esc(c.nombre)}"></option>`).join("")}</datalist><input id="oclient" type="hidden"></div>
+ <div><label>Fecha del pedido</label><input value="${todayISO()}" readonly style="background:#f2eee7"></div><div><label>Cliente / Razón social <span style="font-weight:400;color:var(--muted)">(existente o nuevo)</span></label><input id="oname" list="oClientList" placeholder="Escribe el nombre o selecciona un cliente" oninput="fillClient()" autocomplete="off"><datalist id="oClientList">${(window._clients||[]).map(c=>`<option value="${esc(c.nombre)}"></option>`).join("")}</datalist><input id="oclient" type="hidden"></div>
  <div><label>Fecha de entrega</label><input id="odelivery" type="date"></div>
  <div><label>Cédula / RUC</label><input id="oruc"></div><div><label>Teléfono</label><input id="ophone"></div><div><label>Instagram</label><input id="oig"></div>
  <div><label>Canal de venta</label><select id="ochannel"><option>WhatsApp</option><option>Instagram</option><option>Tienda</option><option>Otro</option></select></div>
