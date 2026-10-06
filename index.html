@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.12</title>
+<title>EJ Inspiration | Gestión V25.13</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -399,9 +399,9 @@ function newOrder(){
  let products=(window._catalog||[]).filter(p=>!p.controla_inventario||Number(p.productos?.existencia)>0).map(p=>`<option value="${p.id}">${esc(p.codigo||"")} · ${esc(p.nombre)}${p.controla_inventario?` · stock ${p.productos?.existencia??0}`:" · servicio"}</option>`).join("");
  orderForm.classList.remove("hidden");
  orderForm.innerHTML=`<div class="grid">
- <div><label>Fecha del pedido</label><input value="${todayISO()}" readonly style="background:#f2eee7"></div><div><label>Cliente</label><select id="oclient" onchange="fillClient()"><option value="">Seleccionar cliente</option>${clients}</select></div>
+ <div><label>Fecha del pedido</label><input value="${todayISO()}" readonly style="background:#f2eee7"></div><div><label>Cliente / Razón social</label><input id="oname" list="oClientList" placeholder="Escribe o selecciona un cliente" oninput="fillClient()" autocomplete="off"><datalist id="oClientList">${(window._clients||[]).map(c=>`<option value="${esc(c.nombre)}"></option>`).join("")}</datalist><input id="oclient" type="hidden"></div>
  <div><label>Fecha de entrega</label><input id="odelivery" type="date"></div>
- <div><label>Teléfono</label><input id="ophone"></div><div><label>Instagram</label><input id="oig"></div>
+ <div><label>Cédula / RUC</label><input id="oruc"></div><div><label>Teléfono</label><input id="ophone"></div><div><label>Instagram</label><input id="oig"></div>
  <div><label>Canal de venta</label><select id="ochannel"><option>WhatsApp</option><option>Instagram</option><option>Tienda</option><option>Otro</option></select></div>
  <div><label>Descuento general ($)</label><input id="odiscount" type="number" min="0" step=".01" value="0" oninput="renderLines()"></div></div>
  <hr style="border:0;border-top:1px solid var(--line);margin:12px 0">
@@ -419,8 +419,23 @@ function newOrder(){
  renderLines();
 }
 function fillClient(){
- let c=(window._clients||[]).find(x=>x.id===oclient.value);
- if(c){ophone.value=c.telefono||"";oig.value=c.instagram||""}
+ let c=(window._clients||[]).find(x=>normClient(x.nombre)===normClient(oname.value));
+ oclient.value=c?.id||"";
+ if(c){oruc.value=c.cedula_ruc||"";ophone.value=c.telefono||"";oig.value=c.instagram||""}
+}
+async function resolveOrderClient(){
+ const nombre=oname.value.trim(),cedula=oruc.value.trim(),telefono=ophone.value.trim(),instagram=oig.value.trim();
+ if(!nombre)throw new Error("Escribe el nombre del cliente.");
+ let clients=window._clients||[];
+ let c=clients.find(x=>oclient.value&&x.id===oclient.value) || clients.find(x=>cedula&&x.cedula_ruc&&normClient(x.cedula_ruc)===normClient(cedula)) || clients.find(x=>telefono&&x.telefono&&normClient(x.telefono)===normClient(telefono)) || clients.find(x=>normClient(x.nombre)===normClient(nombre));
+ if(!c){
+   const {data,error}=await sb.from("clientes").insert({nombre,cedula_ruc:cedula||null,telefono:telefono||null,instagram:instagram||null,activo:true,created_by:currentUser.id}).select("id,nombre,cedula_ruc,telefono,instagram").single();
+   if(error)throw error;c=data;window._clients.push(c);
+ }else{
+   const patch={};if(nombre&&nombre!==c.nombre)patch.nombre=nombre;if(cedula&&!c.cedula_ruc)patch.cedula_ruc=cedula;if(telefono&&!c.telefono)patch.telefono=telefono;if(instagram&&!c.instagram)patch.instagram=instagram;
+   if(Object.keys(patch).length){const {data,error}=await sb.from("clientes").update(patch).eq("id",c.id).select("id,nombre,cedula_ruc,telefono,instagram").single();if(error)throw error;c=data;}
+ }
+ oclient.value=c.id;return c.id;
 }
 function fillCatalogPrice(){
  let p=(window._catalog||[]).find(x=>x.id===oprod.value);
@@ -452,11 +467,12 @@ function renderLines(){
 }
 function removeLine(i){orderLines.splice(i,1);renderLines()}
 async function saveOrder(){
- if(!oclient.value)return alert("Selecciona un cliente."); if(!odelivery.value)return alert("Indica la fecha de entrega."); if(!orderLines.length)return alert("Agrega al menos un producto.");
+ if(!oname.value.trim())return alert("Escribe o selecciona el cliente."); if(!odelivery.value)return alert("Indica la fecha de entrega."); if(!orderLines.length)return alert("Agrega al menos un producto.");
  let dep=Number(odeposit.value||0);if(dep>0&&!opay.value)return alert("Selecciona el método de pago.");
  orderMsg.textContent="Guardando pedido...";
+ let clientId;try{clientId=await resolveOrderClient()}catch(e){orderMsg.textContent="";return alert("No se pudo guardar el cliente: "+e.message)}
  const {data,error}=await sb.rpc("registrar_pedido",{
-   p_cliente_id:oclient.value,p_telefono:ophone.value,p_instagram:oig.value,p_fecha_entrega:odelivery.value,
+   p_cliente_id:clientId,p_telefono:ophone.value,p_instagram:oig.value,p_fecha_entrega:odelivery.value,
    p_canal_venta:ochannel.value,p_observaciones:onotes.value,p_descuento:Number(odiscount.value||0),
    p_detalles:orderLines.map(({stock,controla_inventario,...x})=>x),p_abono:dep,p_metodo_pago:opay.value||null,p_referencia_pago:oref.value||null
  });
