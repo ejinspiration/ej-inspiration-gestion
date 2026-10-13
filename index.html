@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.17</title>
+<title>EJ Inspiration | Gestión V25.18</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -640,6 +640,7 @@ async function registerPayment(id,balance){
 
 
 let quoteLines=[];
+let editingQuoteId=null;
 async function quotations(){
  const [{data:q,error},{data:clientsData},{data:catalogData}]=await Promise.all([
   sb.from("cotizaciones").select("*,clientes(nombre,cedula_ruc,telefono,instagram),cotizacion_detalles(*)").order("created_at",{ascending:false}),
@@ -653,6 +654,7 @@ async function quotations(){
  ${searchBox('quoteSearch','quoteTable','Buscar por cotización, cliente, celular o fecha...')}<div id="quoteForm" class="hidden"></div><div style="overflow:auto"><table id="quoteTable"><thead><tr><th>Número</th><th>Fecha</th><th>Cliente</th><th>Válida hasta</th><th>Estado</th><th>Total</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 function newQuote(){
+ editingQuoteId=null;
  quoteLines=[];
  let cs=(window._qclients||[]).map(c=>`<option value="${esc(c.nombre)}"></option>`).join("");
  let ps=(window._qcatalog||[]).map(p=>`<option value="${p.id}">${esc(p.codigo||"")} · ${esc(p.nombre)}</option>`).join("");
@@ -668,7 +670,7 @@ function newQuote(){
  <button class="btn alt" onclick="qAddLine()">+ Agregar producto</button><div id="qLines" style="margin:14px 0"></div>
  <div class="grid"><div><label>Descuento general</label><input id="qdiscount" type="number" min="0" step=".01" value="0" oninput="qRenderLines()"></div>
  <div><label>Observaciones / condiciones</label><input id="qnotes" placeholder="Ej.: 50% para iniciar producción"></div></div>
- <button class="btn" onclick="saveQuote()">Guardar cotización</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0">`;
+ <button class="btn" id="quoteSaveBtn" onclick="saveQuote()">Guardar cotización</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0">`;
  qRenderLines();
 }
 function normClient(v){return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().replace(/\s+/g," ").toLowerCase()}
@@ -708,10 +710,28 @@ async function saveQuote(){
  if(!qname.value.trim())return alert("Escribe o selecciona el cliente.");if(!qvalid.value)return alert("Indica hasta cuándo es válida.");if(!quoteLines.length)return alert("Agrega al menos una línea.");
  let clientId; try{clientId=await resolveQuoteClient();await saveManualCatalogItems(quoteLines)}catch(e){return alert("No se pudo guardar: "+e.message)}
  const cleanQuoteLines=quoteLines.map(({guardar_catalogo,...x})=>x);
+ if(editingQuoteId){
+  const btn=document.getElementById("quoteSaveBtn");if(btn){btn.disabled=true;btn.textContent="Guardando cambios...";}
+  const {error:editError}=await sb.rpc("editar_cotizacion",{p_cotizacion_id:editingQuoteId,p_cliente_id:clientId,p_valida_hasta:qvalid.value,p_observaciones:qnotes.value||null,p_descuento:Number(qdiscount.value||0),p_detalles:cleanQuoteLines,p_cliente_nombre:qname.value.trim(),p_cliente_cedula_ruc:qruc.value.trim()||null,p_cliente_telefono:qphone.value.trim()||null,p_cliente_instagram:qig.value.trim()||null});
+  if(editError){if(btn){btn.disabled=false;btn.textContent="Guardar cambios";}return alert("No se pudo editar: "+editError.message+"\nEjecuta primero el SQL de actualización en Supabase.");}
+  editingQuoteId=null;alert("Cotización actualizada. Ya puedes convertirla en pedido.");await quotations();return;
+ }
  const {data,error}=await sb.rpc("registrar_cotizacion",{p_cliente_id:clientId,p_valida_hasta:qvalid.value,p_observaciones:qnotes.value||null,p_descuento:Number(qdiscount.value||0),p_detalles:cleanQuoteLines});
  if(error)return alert("No se pudo guardar: "+error.message);
  await sb.from("cotizaciones").update({cliente_nombre:qname.value.trim()||null,cliente_cedula_ruc:qruc.value.trim()||null,cliente_telefono:qphone.value.trim()||null,cliente_instagram:qig.value.trim()||null}).eq("id",data.id);
  alert(`Cotización ${data.numero} guardada. Total: ${money(data.total)}`);await quotations();
+}
+function editQuote(id){
+ const q=(window._quotes||[]).find(x=>x.id===id);if(!q)return;
+ if(q.estado==="Convertida")return alert("La cotización ya fue convertida y no puede modificarse.");
+ newQuote();editingQuoteId=id;
+ quoteLines=(q.cotizacion_detalles||[]).map(d=>({catalogo_producto_id:d.catalogo_producto_id||null,producto_id:d.producto_id||null,descripcion:d.descripcion||"",color:d.color||null,talla:d.talla||null,personalizacion:d.personalizacion||null,cantidad:Number(d.cantidad||0),precio_unitario:Number(d.precio_unitario||0),descuento:Number(d.descuento||0)}));
+ const c=(window._qclients||[]).find(x=>x.id===q.cliente_id);
+ qname.value=q.cliente_nombre||c?.nombre||q.clientes?.nombre||"";qruc.value=q.cliente_cedula_ruc||c?.cedula_ruc||"";qphone.value=q.cliente_telefono||c?.telefono||"";qig.value=q.cliente_instagram||c?.instagram||"";qclient.value=q.cliente_id||"";
+ qvalid.value=q.valida_hasta||"";qdiscount.value=Number(q.descuento||0);qnotes.value=q.observaciones||"";
+ quoteForm.querySelector("h3").textContent="Editar cotización "+q.numero;
+ document.getElementById("quoteSaveBtn").textContent="Guardar cambios";
+ qRenderLines();quoteForm.scrollIntoView({behavior:"smooth",block:"start"});
 }
 async function viewQuote(id){
  const q=(window._quotes||[]).find(x=>x.id===id);if(!q)return;
@@ -721,6 +741,7 @@ async function viewQuote(id){
  <p><b>Cliente:</b> ${esc(q.cliente_nombre||q.clientes?.nombre||"—")} &nbsp; <b>Cédula/RUC:</b> ${esc(q.cliente_cedula_ruc||q.clientes?.cedula_ruc||"—")} &nbsp; <b>Teléfono:</b> ${esc(q.cliente_telefono||q.clientes?.telefono||"—")} &nbsp; <b>Instagram:</b> ${esc(q.cliente_instagram||q.clientes?.instagram||"—")}<br><b>Fecha:</b> ${esc(q.fecha)} &nbsp; <b>Válida hasta:</b> ${esc(q.valida_hasta||"—")}</p>
  <div style="overflow:auto"><table><thead><tr><th>Producto / servicio</th><th>Cant.</th><th>Precio</th><th>Personalización</th><th>Total</th></tr></thead><tbody>${details}</tbody></table></div>
  <p style="text-align:right"><b>Total: ${money(q.total)}</b></p><p>${esc(q.observaciones||"")}</p>
+ ${q.estado!=="Convertida"?`<button class="btn alt" onclick="editQuote('${q.id}')">Editar cotización</button>`:""}
  <button class="btn alt" onclick="printQuote('${q.id}')">Vista previa / Imprimir PDF</button>
  ${q.estado!=="Convertida"?`<button class="btn" onclick="convertQuote('${q.id}')">Convertir en pedido</button>`:""}
  <button class="btn alt" onclick="setQuoteStatus('${q.id}','Aprobada')">Aprobar</button>
