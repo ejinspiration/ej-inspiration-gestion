@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.18</title>
+<title>EJ Inspiration | Gestión V25.19</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -73,7 +73,7 @@ const SUPABASE_URL='https://ntualkoalqsnumewzkmx.supabase.co';
 const SUPABASE_KEY='sb_publishable_hLqxBJokRpIJt5XoRO6Dzg_QkL5oTOP';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 let currentUser=null,currentProfile=null;
-const modules=["Inicio","Clientes","Proveedores","Catálogo de productos","Inventario","Pedidos","Cotizaciones","Cobros","Compras y Gastos","Ajustes","Calculadora de precios","Reportes"];
+const modules=["Inicio","Clientes","Proveedores","Catálogo de productos","Inventario","Pedidos","Cotizaciones","Cobros","Compras y Gastos","Caja y Bancos","Ajustes","Calculadora de precios","Reportes"];
 
 function money(n){return "$"+Number(n||0).toFixed(2)}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]))}
@@ -103,7 +103,7 @@ async function signOut(){await sb.auth.signOut();currentUser=null;currentProfile
 async function show(m){
  title.textContent=m;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.textContent===m));
  content.innerHTML='<div class="panel">Cargando...</div>';
- if(m==="Inicio")return dashboard();if(m==="Clientes")return clients();if(m==="Proveedores")return suppliers();if(m==="Catálogo de productos")return catalog();if(m==="Inventario")return inventory();if(m==="Pedidos")return orders();if(m==="Cotizaciones")return quotations();if(m==="Cobros")return payments();if(m==="Compras y Gastos")return purchasesExpenses();if(m==="Ajustes")return adjustments();if(m==="Calculadora de precios")return priceCalculator();if(m==="Reportes")return reports();
+ if(m==="Inicio")return dashboard();if(m==="Clientes")return clients();if(m==="Proveedores")return suppliers();if(m==="Catálogo de productos")return catalog();if(m==="Inventario")return inventory();if(m==="Pedidos")return orders();if(m==="Cotizaciones")return quotations();if(m==="Cobros")return payments();if(m==="Compras y Gastos")return purchasesExpenses();if(m==="Caja y Bancos")return cashBanks();if(m==="Ajustes")return adjustments();if(m==="Calculadora de precios")return priceCalculator();if(m==="Reportes")return reports();
  content.innerHTML=`<div class="panel"><h2>${m}</h2><p style="color:var(--muted)">Este módulo se conectará en la siguiente fase. La base online ya está preparada.</p></div>`;
 }
 async function dashboard(){
@@ -821,6 +821,36 @@ function renderPayments(period='all'){
 
 
 let expenseLines=[];
+
+function fundingLabel(v){return ({efectivo_ej:"Efectivo de EJ Inspiration",yappy_ej:"Yappy de EJ Inspiration",bac_ej:"Cuenta BAC de EJ Inspiration",propietaria:"Dinero personal de la propietaria"})[v]||"Pendiente de clasificar";}
+async function saveFundingOrigin(id){
+ const v=document.getElementById("cgOriginEdit")?.value;
+ if(!v)return alert("Selecciona un origen.");
+ const {error}=await sb.rpc("establecer_origen_compra_gasto",{p_id:id,p_origen:v});
+ if(error)return alert("No se pudo actualizar: "+error.message);
+ await purchasesExpenses();viewPurchaseExpense(id);
+}
+function bankFee(m,amount){
+ const method=normalizeText(m);const cents=x=>Math.round((x+Number.EPSILON)*100)/100;
+ if(method.includes("yappy")){const commission=cents(amount*.01);return cents(commission+cents(commission*.07));}
+ if(method.includes("tarjeta")||method.includes("clave")||method.includes("credito"))return cents(amount*.03);
+ return 0;
+}
+async function cashBanks(){
+ const [co,ex]=await Promise.all([sb.from("cobros").select("id,fecha,monto,metodo_pago").order("fecha",{ascending:false}),sb.from("compras_gastos").select("id,fecha,total,origen_fondos,proveedor").order("fecha",{ascending:false})]);
+ if(co.error||ex.error){content.innerHTML='<div class="panel">No se pudo cargar Caja y Bancos: '+esc((co.error||ex.error).message)+'</div>';return;}
+ const cobros=co.data||[],gastos=ex.data||[];
+ const summary={efectivo:{gross:0,fees:0,expense:0},yappy:{gross:0,fees:0,expense:0},bac:{gross:0,fees:0,expense:0}};
+ cobros.forEach(c=>{const m=normalizeText(c.metodo_pago);const k=m.includes("yappy")?"yappy":(m.includes("tarjeta")||m.includes("clave")||m.includes("credito"))?"bac":m.includes("efectivo")?"efectivo":null;if(!k)return;summary[k].gross+=Number(c.monto||0);summary[k].fees+=bankFee(c.metodo_pago,Number(c.monto||0));});
+ const originMap={efectivo_ej:"efectivo",yappy_ej:"yappy",bac_ej:"bac"};
+ gastos.forEach(g=>{const k=originMap[g.origen_fondos];if(k)summary[k].expense+=Number(g.total||0)});
+ const pending=gastos.filter(g=>!g.origen_fondos);
+ const owner=gastos.filter(g=>g.origen_fondos==="propietaria").reduce((a,g)=>a+Number(g.total||0),0);
+ const totalFees=Object.values(summary).reduce((a,x)=>a+x.fees,0);
+ const cards=[["Efectivo en tienda","efectivo"],["Yappy · Banco General","yappy"],["Tarjeta y Clave · BAC","bac"]].map(([name,k])=>{const x=summary[k];return '<div class="card"><b>'+name+'</b><p>Cobrado: '+money(x.gross)+'</p><p>Comisiones estimadas: '+money(x.fees)+'</p><p>Gastos clasificados: '+money(x.expense)+'</p><div class="metric">'+money(x.gross-x.fees-x.expense)+'</div><small>Movimiento neto registrado, NO saldo bancario confirmado</small></div>';}).join("");
+ content.innerHTML='<div class="panel"><h2>Caja y Bancos</h2><p>Los cobros se conservan por su valor completo. Este reporte separa las comisiones de BAC (3%) y Yappy (1% más 7% de ITBMS sobre la comisión).</p><p><b>Importante:</b> las comisiones son estimadas y no se han insertado como gastos duplicados. Para conocer los saldos reales falta establecer saldos iniciales, depósitos, retiros y conciliaciones. No se incluyen cuentas personales.</p></div><div class="cards">'+cards+'</div><div class="cards"><div class="card">Comisiones bancarias estimadas<div class="metric">'+money(totalFees)+'</div></div><div class="card">Gastos pagados personalmente<div class="metric">'+money(owner)+'</div><small>Aportes identificados, antes de devoluciones</small></div><div class="card">Gastos sin clasificar<div class="metric">'+pending.length+'</div><button class="btn alt" onclick="show(\x27Compras y Gastos\x27)">Clasificar gastos</button></div></div><div class="panel"><h2>Distribución de utilidades</h2><p>Acuerdo: 40% para Ilianis y 60% para la propietaria, después de todos los costos y gastos. El reparto aún no se calcula automáticamente: falta validar costos consumidos, período y gastos para evitar duplicaciones.</p></div>';
+}
+
 async function purchasesExpenses(){
  const [{data:records,error},{data:inv},{data:ords},{data:sups}]=await Promise.all([
   sb.from("compras_gastos").select("*,compra_gasto_detalles(*)").order("fecha",{ascending:false}).order("created_at",{ascending:false}),
@@ -837,7 +867,7 @@ async function purchasesExpenses(){
    else if(d.destino==="Compra directa para pedido")directTotal+=v;
    else if(d.destino==="Gasto operativo")operatingTotal+=v;
  }));
- let rows=(records||[]).map(r=>`<tr><td>${esc(r.fecha)}</td><td>${esc(r.proveedor||"—")}</td><td>${esc(r.numero_factura||"—")}</td><td>${esc(r.metodo_pago||"—")}</td><td>${money(r.total)}</td><td><button class="btn alt" onclick="viewPurchaseExpense('${r.id}')">Ver</button></td></tr>`).join("");
+ let rows=(records||[]).map(r=>`<tr><td>${esc(r.fecha)}</td><td>${esc(r.proveedor||"—")}</td><td>${esc(r.numero_factura||"—")}</td><td>${esc(r.metodo_pago||"—")}</td><td>${esc(fundingLabel(r.origen_fondos))}</td><td>${money(r.total)}</td><td><button class="btn alt" onclick="viewPurchaseExpense('${r.id}')">Ver</button></td></tr>`).join("");
  window._cgRecords=records||[];
  content.innerHTML=`<div class="cards">
  <div class="card">Total desembolsado<div class="metric">${money(grand)}</div></div>
@@ -846,7 +876,7 @@ async function purchasesExpenses(){
  <div class="card">Gastos operativos<div class="metric">${money(operatingTotal)}</div></div></div>
  <div class="panel"><div class="head"><h2>Compras y Gastos</h2><button class="btn" onclick="purchaseExpenseForm()">+ Registrar compra/gasto</button></div>
  <div id="cgForm" class="hidden"></div><div id="cgView"></div>
- <div style="overflow:auto"><table><thead><tr><th>Fecha</th><th>Proveedor</th><th>Factura / comprobante</th><th>Método</th><th>Total</th><th></th></tr></thead><tbody>${rows||`<tr><td colspan="6">Aún no hay registros.</td></tr>`}</tbody></table></div></div>`;
+ <div style="overflow:auto"><table><thead><tr><th>Fecha</th><th>Proveedor</th><th>Factura / comprobante</th><th>Método</th><th>Origen del dinero</th><th>Total</th><th></th></tr></thead><tbody>${rows||`<tr><td colspan="6">Aún no hay registros.</td></tr>`}</tbody></table></div></div>`;
 }
 function purchaseExpenseForm(){
  expenseLines=[];cgForm.classList.remove("hidden");cgView.innerHTML="";
@@ -855,7 +885,7 @@ function purchaseExpenseForm(){
  <div><label>Proveedor</label><select id="cgprovider"><option value="">Seleccionar</option>${(window._cgSuppliers||[]).map(x=>`<option value="${esc(x.nombre)}">${esc(x.nombre)}${x.cedula_ruc?` · ${esc(x.cedula_ruc)}`:""}</option>`).join("")}</select></div>
  <div><label>N.º factura / comprobante</label><input id="cginvoice"></div>
  <div><label>Método de pago</label><select id="cgmethod"><option value="">Seleccionar</option><option>Efectivo</option><option>Yappy</option><option>Transferencia / ACH</option><option>Tarjeta</option><option>Otro</option></select></div>
- <div style="grid-column:1/-1"><label>Observaciones generales</label><input id="cgnotes"></div></div>
+ <div><label>¿Con qué dinero se pagó?</label><select id="cgfunding"><option value="">Seleccionar origen</option><option value="efectivo_ej">Efectivo de EJ Inspiration</option><option value="yappy_ej">Fondos Yappy de EJ Inspiration</option><option value="bac_ej">Cuenta BAC de EJ Inspiration</option><option value="propietaria">Dinero personal de la propietaria (pendiente de recuperar)</option></select></div><div style="grid-column:1/-1"><label>Observaciones generales</label><input id="cgnotes"></div></div>
  <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
  <h3>Detalle</h3><div class="grid">
  <div><label>Destino</label><select id="cgdest" onchange="cgDestinationChanged()"><option>Mercancía para inventario</option><option>Compra directa para pedido</option><option>Gasto operativo</option></select></div>
@@ -903,16 +933,18 @@ function renderExpenseLines(){
 async function savePurchaseExpense(){
  if(!cgdate.value)return alert("Selecciona la fecha.");
  if(!expenseLines.length)return alert("Agrega al menos una línea.");
+ if(!cgfunding.value)return alert("Selecciona de dónde salió el dinero.");
  let {data,error}=await sb.rpc("registrar_compra_gasto",{p_fecha:cgdate.value,p_proveedor:cgprovider.value||null,p_numero_factura:cginvoice.value.trim()||null,p_metodo_pago:cgmethod.value||null,p_observaciones:cgnotes.value.trim()||null,p_detalles:expenseLines});
  if(error)return alert("No se pudo guardar: "+error.message);
- alert(`Compra/gasto registrado correctamente. Total: ${money(data.total)}`);await purchasesExpenses();
+ const fundingResult=await sb.rpc("establecer_origen_compra_gasto",{p_id:data.id,p_origen:cgfunding.value});if(fundingResult.error){alert("La compra se registró, pero no se pudo guardar el origen del dinero: "+fundingResult.error.message);return purchasesExpenses();} alert(`Compra/gasto registrado correctamente. Total: ${money(data.total)}`);await purchasesExpenses();
 }
 function viewPurchaseExpense(id){
  let r=(window._cgRecords||[]).find(x=>x.id===id);if(!r)return;
  let rows=(r.compra_gasto_detalles||[]).map(d=>`<tr><td>${esc(d.destino)}</td><td>${esc(d.descripcion||"—")}</td><td>${d.cantidad}</td><td>${money(d.costo_unitario)}</td><td>${money(d.total)}</td></tr>`).join("");
  cgView.innerHTML=`<div class="panel" style="background:#faf6ef"><div class="head"><h3>Detalle de compra/gasto</h3><button class="btn alt" onclick="cgView.innerHTML=''">Cerrar</button></div>
- <p><b>Fecha:</b> ${esc(r.fecha)} &nbsp; <b>Proveedor:</b> ${esc(r.proveedor||"—")} &nbsp; <b>Factura:</b> ${esc(r.numero_factura||"—")}</p>
+ <p><b>Fecha:</b> ${esc(r.fecha)} &nbsp; <b>Proveedor:</b> ${esc(r.proveedor||"—")} &nbsp; <b>Factura:</b> ${esc(r.numero_factura||"—")}</p><div class="grid"><div><label>¿Con qué dinero se pagó?</label><select id="cgOriginEdit"><option value="">Pendiente de clasificar</option><option value="efectivo_ej">Efectivo de EJ Inspiration</option><option value="yappy_ej">Fondos Yappy de EJ Inspiration</option><option value="bac_ej">Cuenta BAC de EJ Inspiration</option><option value="propietaria">Dinero personal de la propietaria</option></select></div><div><label>Clasificación</label><p>${esc(fundingLabel(r.origen_fondos))}</p><button class="btn alt" onclick="saveFundingOrigin(\x27${r.id}\x27)">Guardar origen</button></div></div>
  <table><thead><tr><th>Destino</th><th>Descripción</th><th>Cant.</th><th>Costo</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table><p style="text-align:right"><b>Total: ${money(r.total)}</b></p></div>`;
+ document.getElementById("cgOriginEdit").value=r.origen_fondos||"";
 }
 
 
