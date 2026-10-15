@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.21</title>
+<title>EJ Inspiration | Gestión V25.22</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -837,19 +837,60 @@ function bankFee(m,amount){
  if(method.includes("tarjeta")||method.includes("clave")||method.includes("credito"))return cents(amount*.03);
  return 0;
 }
-async function cashBanks(){
- const [co,ex]=await Promise.all([sb.from("cobros").select("id,fecha,monto,metodo_pago").order("fecha",{ascending:false}),sb.from("compras_gastos").select("id,fecha,total,origen_fondos,proveedor").order("fecha",{ascending:false})]);
- if(co.error||ex.error){content.innerHTML='<div class="panel">No se pudo cargar Caja y Bancos: '+esc((co.error||ex.error).message)+'</div>';return;}
- const cobros=co.data||[],gastos=ex.data||[];
- const summary={efectivo:{gross:0,fees:0,expense:0},yappy:{gross:0,fees:0,expense:0},bac:{gross:0,fees:0,expense:0}};
- cobros.forEach(c=>{const m=normalizeText(c.metodo_pago);const k=m.includes("yappy")?"yappy":(m.includes("tarjeta")||m.includes("clave")||m.includes("credito"))?"bac":m.includes("efectivo")?"efectivo":null;if(!k)return;summary[k].gross+=Number(c.monto||0);summary[k].fees+=bankFee(c.metodo_pago,Number(c.monto||0));});
- const originMap={efectivo_ej:"efectivo",yappy_ej:"yappy",bac_ej:"bac"};
- gastos.forEach(g=>{const k=originMap[g.origen_fondos];if(k)summary[k].expense+=Number(g.total||0)});
- const pending=gastos.filter(g=>!g.origen_fondos);
- const owner=gastos.filter(g=>g.origen_fondos==="propietaria").reduce((a,g)=>a+Number(g.total||0),0);
- const totalFees=Object.values(summary).reduce((a,x)=>a+x.fees,0);
- const cards=[["Efectivo en tienda","efectivo"],["Yappy · Banco General","yappy"],["Tarjeta y Clave · BAC","bac"]].map(([name,k])=>{const x=summary[k];return '<div class="card"><b>'+name+'</b><p>Cobrado: '+money(x.gross)+'</p><p>Comisiones: '+money(x.fees)+'</p><p>Gastos clasificados: '+money(x.expense)+'</p><div class="metric">'+money(x.gross-x.fees-x.expense)+'</div><small>Neto de movimientos registrados</small></div>';}).join("");
- content.innerHTML='<div class="panel"><div class="head"><h2>Caja y Bancos</h2><span style="color:var(--muted);font-size:12px">Se actualiza automáticamente con Cobros y Compras y Gastos</span></div><p style="color:var(--muted);font-size:13px">Ingresos y egresos de EJ Inspiration, sin registrar dos veces. Los importes mostrados son movimientos calculados; los saldos bancarios se confirmarán mediante conciliación.</p></div><div class="cards">'+cards+'</div><div class="cards"><div class="card">Comisiones bancarias<div class="metric">'+money(totalFees)+'</div></div><div class="card">Gastos pagados por Stephany<div class="metric">'+money(owner)+'</div><small>Aportes identificados; devoluciones pendientes de implementar</small></div><div class="card">Gastos sin clasificar<div class="metric">'+pending.length+'</div><button class="btn alt" onclick="show(\x27Compras y Gastos\x27)">Clasificar gastos</button></div></div><div class="panel"><h2>Distribución de utilidades</h2><p>Acuerdo: 40% para Ilianis y 60% para Stephany, después de todos los costos y gastos. El reparto aún no se calcula automáticamente: falta validar costos consumidos, período y gastos para evitar duplicaciones.</p></div>';
+
+async function cashBanks(tab='movimientos'){
+ const [co,ex,ac]=await Promise.all([
+  sb.from('cobros').select('id,fecha,monto,metodo_pago,referencia').order('fecha',{ascending:false}),
+  sb.from('compras_gastos').select('id,fecha,total,origen_fondos,proveedor,numero_factura').order('fecha',{ascending:false}),
+  sb.from('ej_financial_actions').select('id,fecha,tipo,cuenta,monto,observacion').order('fecha',{ascending:false})
+ ]);
+ if(co.error||ex.error||ac.error){content.innerHTML='<div class="panel">No se pudo cargar Caja y Bancos: '+esc((co.error||ex.error||ac.error).message)+'</div>';return;}
+ const cobros=co.data||[],gastos=ex.data||[],acciones=ac.data||[];
+ const totals={efectivo_ej:{income:0,fee:0,expense:0,repay:0},yappy_ej:{income:0,fee:0,expense:0,repay:0},bac_ej:{income:0,fee:0,expense:0,repay:0}};
+ const movement=[];
+ cobros.forEach(c=>{
+  const m=normalizeText(c.metodo_pago);
+  const k=m.includes('yappy')?'yappy_ej':(m.includes('tarjeta')||m.includes('clave')||m.includes('credito'))?'bac_ej':m.includes('efectivo')?'efectivo_ej':null;
+  if(!k)return;
+  const n=Number(c.monto||0),fee=bankFee(c.metodo_pago,n);
+  totals[k].income+=n;totals[k].fee+=fee;
+  movement.push({fecha:c.fecha,concepto:'Cobro · '+(c.metodo_pago||''),cuenta:k,monto:n-fee});
+ });
+ gastos.forEach(g=>{
+  if(totals[g.origen_fondos]){totals[g.origen_fondos].expense+=Number(g.total||0);movement.push({fecha:g.fecha,concepto:'Compra / gasto · '+(g.proveedor||g.numero_factura||'Sin proveedor'),cuenta:g.origen_fondos,monto:-Number(g.total||0)});}
+ });
+ acciones.forEach(x=>{if(x.tipo==='devolucion_stephany'&&totals[x.cuenta]){totals[x.cuenta].repay+=Number(x.monto);movement.push({fecha:x.fecha,concepto:'Devolución a Stephany',cuenta:x.cuenta,monto:-Number(x.monto)});}});
+ const aportado=gastos.filter(g=>g.origen_fondos==='propietaria').reduce((s,g)=>s+Number(g.total||0),0);
+ const devuelto=acciones.filter(x=>x.tipo==='devolucion_stephany').reduce((s,x)=>s+Number(x.monto||0),0);
+ const fondo=acciones.reduce((s,x)=>s+(x.tipo==='reservar_fondo'?Number(x.monto):x.tipo==='liberar_fondo'?-Number(x.monto):0),0);
+ const disponible=Object.values(totals).reduce((s,x)=>s+x.income-x.fee-x.expense-x.repay,0);
+ const pendientes=gastos.filter(g=>!g.origen_fondos).length;
+ const admin=normalizeText(currentProfile?.rol)==='admin'||normalizeText(currentProfile?.rol)==='administrador';
+ const nav='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:15px">'+[['movimientos','Movimientos'],['aportes','Aportes de Stephany'],['fondo','Fondo EJ Inspiration'],['cierre','Cierre mensual']].map(([k,v])=>'<button class="btn '+(tab===k?'':'alt')+'" onclick="cashBanks(\''+k+'\')">'+v+'</button>').join('')+'</div>';
+ const name={efectivo_ej:'Efectivo en tienda',yappy_ej:'Yappy · Banco General',bac_ej:'Tarjeta y Clave · BAC'};
+ const cards=Object.entries(totals).map(([k,x])=>'<div class="card"><b>'+name[k]+'</b><div class="metric">'+money(x.income-x.fee-x.expense-x.repay)+'</div><small>Neto registrado · no conciliado</small></div>').join('');
+ let body='';
+ if(tab==='movimientos'){
+  const rows=movement.sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,150).map(x=>'<tr><td>'+esc(x.fecha)+'</td><td>'+esc(x.concepto)+'</td><td>'+esc(name[x.cuenta])+'</td><td>'+money(x.monto)+'</td></tr>').join('');
+  body='<div class="cards">'+cards+'</div><div class="panel"><div class="head"><h2>Movimientos automáticos</h2><small>'+pendientes+' gastos pendientes de clasificar</small></div><div style="overflow:auto"><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Cuenta</th><th>Neto</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+ }else if(tab==='aportes'){
+  body='<div class="cards"><div class="card">Gastos pagados por Stephany<div class="metric">'+money(aportado)+'</div></div><div class="card">Devuelto a Stephany<div class="metric">'+money(devuelto)+'</div></div><div class="card">Pendiente de devolución<div class="metric">'+money(aportado-devuelto)+'</div></div></div>';
+  body+='<div class="panel"><h2>Devoluciones</h2><p>Los gastos ya están contabilizados. Cada devolución reduce el dinero disponible y la deuda con Stephany, sin registrar otro gasto.</p>'+ (admin?'<div class="grid"><div><label>Cuenta de EJ Inspiration</label><select id="finCuenta">'+Object.entries(name).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('')+'</select></div><div><label>Monto a devolver</label><input id="finMonto" type="number" min="0.01" step="0.01"></div><div><label>Referencia / nota</label><input id="finNota" placeholder="Opcional"></div></div><button class="btn" onclick="approveFinance(\'devolucion_stephany\')">Confirmar devolución</button>':'<p>Solo Stephany puede aprobar devoluciones.</p>')+'</div>';
+ }else if(tab==='fondo'){
+  body='<div class="cards"><div class="card">Meta del fondo<div class="metric">$500.00</div></div><div class="card">Reservado<div class="metric">'+money(fondo)+'</div></div><div class="card">Pendiente para la meta<div class="metric">'+money(Math.max(0,500-fondo))+'</div></div></div><div class="panel"><h2>Fondo de capital de trabajo</h2><p>La reserva se registra por separado. No se descuenta automáticamente del 40% de Ilianis ni del 60% de Stephany. Reservar dinero no constituye un gasto.</p>'+ (admin?'<div class="grid"><div><label>Cuenta de origen</label><select id="finCuenta">'+Object.entries(name).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('')+'</select></div><div><label>Monto</label><input id="finMonto" type="number" min="0.01" step="0.01"></div><div><label>Observación</label><input id="finNota" placeholder="Opcional"></div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="approveFinance(\'reservar_fondo\')">Aprobar reserva</button><button class="btn alt" onclick="approveFinance(\'liberar_fondo\')">Liberar reserva</button></div>':'<p>Solo Stephany puede aprobar movimientos del fondo.</p>')+'</div>';
+ }else{
+  const d=new Date(),year=d.getFullYear(),month=d.getMonth()+1,cutoff=month===2?new Date(year,2,0).getDate():30;
+  body='<div class="panel"><h2>Cierre mensual · día '+cutoff+'</h2><p>La información financiera se actualiza durante todo el mes. El cierre formal requiere aprobación de Stephany.</p><p><b>Devolución pendiente a Stephany:</b> '+money(aportado-devuelto)+'</p><p><b>Fondo reservado:</b> '+money(fondo)+' de $500.00</p><p><b>Movimiento neto registrado:</b> '+money(disponible)+'</p><p>El reparto de utilidades sigue siendo 40% Ilianis y 60% Stephany. Aún no se autorizan pagos de utilidades desde esta pantalla: antes hay que conciliar ingresos, inventario consumido, costos y gastos del período para calcular una utilidad neta confiable.</p></div>';
+ }
+ content.innerHTML='<div class="panel"><div class="head"><h2>Caja y Bancos</h2><small>Actualizado con Cobros y Compras y Gastos</small></div></div>'+nav+body+'<p style="color:var(--muted);font-size:12px">Los movimientos registrados no sustituyen la conciliación bancaria. El sistema no ejecuta transferencias bancarias.</p>';
+}
+async function approveFinance(tipo){
+ if(!confirm('¿Confirmas este movimiento financiero? Debe corresponder a dinero realmente entregado o reservado.'))return;
+ const monto=Number(document.getElementById('finMonto')?.value||0),cuenta=document.getElementById('finCuenta')?.value,nota=document.getElementById('finNota')?.value||null;
+ if(!Number.isFinite(monto)||monto<=0)return alert('Escribe un monto válido.');
+ const {error}=await sb.rpc('ej_registrar_accion_financiera',{p_tipo:tipo,p_cuenta:cuenta,p_monto:monto,p_observacion:nota});
+ if(error)return alert('No se pudo registrar: '+error.message);
+ alert('Movimiento confirmado y registrado.');await cashBanks(tipo==='devolucion_stephany'?'aportes':'fondo');
 }
 
 async function purchasesExpenses(){
