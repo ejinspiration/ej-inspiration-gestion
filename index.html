@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.20</title>
+<title>EJ Inspiration | Gestión V25.21</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -823,6 +823,7 @@ function renderPayments(period='all'){
 let expenseLines=[];
 
 function fundingLabel(v){return ({efectivo_ej:"Efectivo de EJ Inspiration",yappy_ej:"Yappy de EJ Inspiration",bac_ej:"Cuenta BAC de EJ Inspiration",propietaria:"Dinero personal de Stephany"})[v]||"Pendiente de clasificar";}
+async function saveExpenseProvider(id){const nombre=document.getElementById("cgEditProvider")?.value.trim();if(!nombre)return alert("Escribe el nombre del proveedor.");const {error}=await sb.from("compras_gastos").update({proveedor:nombre}).eq("id",id);if(error)return alert("No se pudo actualizar el proveedor: "+error.message);await purchasesExpenses();viewPurchaseExpense(id);}
 async function saveFundingOrigin(id){
  const v=document.getElementById("cgOriginEdit")?.value;
  if(!v)return alert("Selecciona un origen.");
@@ -882,7 +883,7 @@ function purchaseExpenseForm(){
  expenseLines=[];cgForm.classList.remove("hidden");cgView.innerHTML="";
  cgForm.innerHTML=`<h3>Registrar compra / gasto</h3>
  <div class="grid"><div><label>Fecha</label><input id="cgdate" type="date"></div>
- <div><label>Proveedor</label><select id="cgprovider"><option value="">Seleccionar</option>${(window._cgSuppliers||[]).map(x=>`<option value="${esc(x.nombre)}">${esc(x.nombre)}${x.cedula_ruc?` · ${esc(x.cedula_ruc)}`:""}</option>`).join("")}</select></div>
+ <div><label>Proveedor / comercio</label><input id="cgprovider" list="cgproviderOptions" placeholder="Escribe o selecciona el proveedor" autocomplete="off"><datalist id="cgproviderOptions">${(window._cgSuppliers||[]).map(x=>`<option value="${esc(x.nombre)}"></option>`).join("")}</datalist></div>
  <div><label>N.º factura / comprobante</label><input id="cginvoice"></div>
  <div><label>Método de pago</label><select id="cgmethod"><option value="">Seleccionar</option><option>Efectivo</option><option>Yappy</option><option>Transferencia / ACH</option><option>Tarjeta</option><option>Otro</option></select></div>
  <div><label>¿Con qué dinero se pagó?</label><select id="cgfunding"><option value="">Seleccionar origen</option><option value="efectivo_ej">Efectivo de EJ Inspiration</option><option value="yappy_ej">Fondos Yappy de EJ Inspiration</option><option value="bac_ej">Cuenta BAC de EJ Inspiration</option><option value="propietaria">Dinero personal de Stephany (pendiente de recuperar)</option></select></div><div style="grid-column:1/-1"><label>Observaciones generales</label><input id="cgnotes"></div></div>
@@ -942,7 +943,7 @@ function viewPurchaseExpense(id){
  let r=(window._cgRecords||[]).find(x=>x.id===id);if(!r)return;
  let rows=(r.compra_gasto_detalles||[]).map(d=>`<tr><td>${esc(d.destino)}</td><td>${esc(d.descripcion||"—")}</td><td>${d.cantidad}</td><td>${money(d.costo_unitario)}</td><td>${money(d.total)}</td></tr>`).join("");
  cgView.innerHTML=`<div class="panel" style="background:#faf6ef"><div class="head"><h3>Detalle de compra/gasto</h3><button class="btn alt" onclick="cgView.innerHTML=''">Cerrar</button></div>
- <p><b>Fecha:</b> ${esc(r.fecha)} &nbsp; <b>Proveedor:</b> ${esc(r.proveedor||"—")} &nbsp; <b>Factura:</b> ${esc(r.numero_factura||"—")}</p><div class="grid"><div><label>¿Con qué dinero se pagó?</label><select id="cgOriginEdit"><option value="">Pendiente de clasificar</option><option value="efectivo_ej">Efectivo de EJ Inspiration</option><option value="yappy_ej">Fondos Yappy de EJ Inspiration</option><option value="bac_ej">Cuenta BAC de EJ Inspiration</option><option value="propietaria">Dinero personal de Stephany</option></select></div><div><label>Clasificación</label><p>${esc(fundingLabel(r.origen_fondos))}</p><button class="btn alt" onclick="saveFundingOrigin(\x27${r.id}\x27)">Guardar origen</button></div></div>
+ <p><b>Fecha:</b> ${esc(r.fecha)} &nbsp; <b>Factura:</b> ${esc(r.numero_factura||"—")}</p><div class="grid"><div><label>Proveedor / comercio</label><input id="cgEditProvider" placeholder="Escribe el nombre del proveedor" value="${esc(r.proveedor||"")}"></div><div><label>Actualizar proveedor</label><button class="btn alt" onclick="saveExpenseProvider(\x27${r.id}\x27)">Guardar proveedor</button></div></div><div class="grid"><div><label>¿Con qué dinero se pagó?</label><select id="cgOriginEdit"><option value="">Pendiente de clasificar</option><option value="efectivo_ej">Efectivo de EJ Inspiration</option><option value="yappy_ej">Fondos Yappy de EJ Inspiration</option><option value="bac_ej">Cuenta BAC de EJ Inspiration</option><option value="propietaria">Dinero personal de Stephany</option></select></div><div><label>Clasificación</label><p>${esc(fundingLabel(r.origen_fondos))}</p><button class="btn alt" onclick="saveFundingOrigin(\x27${r.id}\x27)">Guardar origen</button></div></div>
  <table><thead><tr><th>Destino</th><th>Descripción</th><th>Cant.</th><th>Costo</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table><p style="text-align:right"><b>Total: ${money(r.total)}</b></p></div>`;
  document.getElementById("cgOriginEdit").value=r.origen_fondos||"";
 }
