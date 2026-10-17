@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.23</title>
+<title>EJ Inspiration | Gestión V25.24</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -999,6 +999,19 @@ function viewPurchaseExpense(id){
 
 
 
+async function pcHistory(){
+ const {data,error}=await sb.from('ej_calculos_precio').select('id,nombre,modo,detalle,created_at').order('created_at',{ascending:false}).limit(150);
+ if(error)return alert('No se pudo cargar el historial: '+error.message);
+ window._pcSavedCalculations=data||[];
+ const rows=(data||[]).map(x=>'<tr><td>'+esc(new Date(x.created_at).toLocaleDateString('es-PA'))+'</td><td>'+esc(x.nombre)+'</td><td>'+esc(x.modo)+'</td><td>'+money(x.detalle?.resultado?.price)+'</td><td><button class="btn alt" onclick="pcShowSaved(\''+x.id+'\')">Ver desglose</button></td></tr>').join('');
+ content.innerHTML='<div class="panel"><div class="head"><h2>Historial de cálculos</h2><button class="btn alt" onclick="priceCalculator()">Nueva calculadora</button></div><p>Consulta los costos y materiales guardados desde la versión V25.24. Los cálculos anteriores solo conservan el resumen que se guardó en el catálogo.</p>'+searchBox('pcHistorySearch','pcHistoryTable','Buscar cálculo por nombre')+'<div style="overflow:auto"><table id="pcHistoryTable"><thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Precio</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
+function pcShowSaved(id){
+ const x=(window._pcSavedCalculations||[]).find(v=>v.id===id);if(!x)return;
+ const d=x.detalle||{},r=d.resultado||{},m=d.materiales||[];
+ const section=(title,arr)=>'<h3>'+title+'</h3><table><thead><tr><th>Concepto</th><th>Importe</th></tr></thead><tbody>'+Object.entries(arr||{}).map(([k,v])=>'<tr><td>'+esc(k)+'</td><td>'+money(v)+'</td></tr>').join('')+'</tbody></table>';
+ content.innerHTML='<div class="panel"><div class="head"><h2>'+esc(x.nombre)+'</h2><button class="btn alt" onclick="pcHistory()">Volver al historial</button></div><p>Guardado: '+esc(new Date(x.created_at).toLocaleString('es-PA'))+' · '+esc(x.modo)+'</p><div class="cards"><div class="card">Cantidad<div class="metric">'+(r.qty||1)+'</div></div><div class="card">Costo total<div class="metric">'+money(r.totalCost)+'</div></div><div class="card">Costo unitario<div class="metric">'+money(r.unitCost)+'</div></div><div class="card">Precio de venta<div class="metric">'+money(r.price)+'</div></div><div class="card">Ganancia total<div class="metric">'+money(r.totalProfit)+'</div></div></div><h3>Materiales</h3><table><thead><tr><th>Material</th><th>Cantidad</th><th>Costo unitario</th><th>Total</th></tr></thead><tbody>'+m.map(z=>'<tr><td>'+esc(z.name||'Sin nombre')+'</td><td>'+Number(z.qty||0)+'</td><td>'+money(z.cost)+'</td><td>'+money(Number(z.qty||0)*Number(z.cost||0))+'</td></tr>').join('')+'</tbody></table>'+section('Procesos',d.procesos)+section('Costos básicos',d.basicos)+'<p><b>Merma:</b> '+(d.mermaPorcentaje||0)+'% · '+money(d.mermaMonto)+'</p><p><b>Ganancia deseada:</b> '+(d.margen||0)+'%</p></div>';
+}
 async function priceCalculator(useForQuote=false){
  const target = useForQuote && document.getElementById("qprice") ? document.getElementById("qprice") : null;
  content.innerHTML=`<div class="panel"><h2>Calculadora de costos y precios</h2><p style="color:var(--muted)">Cargando inventario...</p></div>`;
@@ -1009,7 +1022,7 @@ async function priceCalculator(useForQuote=false){
  const render=()=>{
   content.innerHTML=`<div class="panel"><div class="head"><div><h2>Calculadora de costos y precios</h2><p style="color:var(--muted);margin:5px 0 0">Calcula el costo TOTAL del trabajo y luego el costo real por unidad.</p></div>${target?'<button class="btn alt" id="pcBack">Volver a cotización</button>':''}</div>
   ${pcInvError?`<div style="padding:10px;border:1px solid #d7b8a6;border-radius:10px;margin-bottom:12px">No se pudo cargar el inventario: ${esc(pcInvError.message)}</div>`:''}
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"><button class="btn ${window._pcMode==='quick'?'':'alt'}" id="pcQuick">Cálculo rápido</button><button class="btn ${window._pcMode==='detail'?'':'alt'}" id="pcDetail">Cálculo detallado</button></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn alt" onclick="pcHistory()">Ver historial de cálculos</button></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"><button class="btn ${window._pcMode==='quick'?'':'alt'}" id="pcQuick">Cálculo rápido</button><button class="btn ${window._pcMode==='detail'?'':'alt'}" id="pcDetail">Cálculo detallado</button></div>
   <div id="pcBody"></div></div>`;
   pcQuick.onclick=()=>{window._pcMode='quick';render()};pcDetail.onclick=()=>{window._pcMode='detail';render()};
   if(target&&document.getElementById('pcBack'))pcBack.onclick=()=>quotationForm();
@@ -1048,7 +1061,13 @@ async function priceCalculator(useForQuote=false){
     document.querySelectorAll('.pciCost').forEach(e=>e.oninput=()=>{window._pcItems[+e.dataset.i].cost=Math.max(0,+e.value||0);calc()});
     document.querySelectorAll('.pciDel').forEach(e=>e.onclick=()=>{window._pcItems.splice(+e.dataset.i,1);drawItems();calc()});
   };
-  const calc=()=>{const materials=window._pcItems.reduce((a,x)=>a+(+x.qty||0)*(+x.cost||0),0);const proc=[...document.querySelectorAll('.pcProc')].reduce((a,e)=>a+(+e.value||0),0);const base=[...document.querySelectorAll('.pcBase')].reduce((a,e)=>a+(+e.value||0),0);const before=materials+proc+base;const waste=before*Math.max(0,+pcWaste.value||0)/100;const totalCost=before+waste;const r=results(totalCost,+pcQty.value,+pcMargin.value,+pcDesired.value);pcRes.innerHTML=`<div style="margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#faf6ef"><b>Resumen del costo TOTAL</b><div style="margin-top:7px;font-size:14px">Materiales ${money(materials)} · Procesos ${money(proc)} · Básicos ${money(base)} · Merma ${money(waste)}</div><div style="margin-top:6px;font-size:13px;color:var(--muted)">Procesos y costos básicos se suman una sola vez al trabajo completo.</div></div>${resultHTML(r)}<div style="margin-top:10px"><button class="btn alt" id="pcSaveCatalog">Guardar como producto del catálogo</button></div>`;bindUse(r);document.getElementById('pcSaveCatalog').onclick=async()=>{let name=pcName.value.trim();if(!name)return alert('Escribe el nombre del producto.');let code=('CAL-'+Date.now().toString().slice(-6));let desc='Costo total del trabajo '+money(totalCost)+' · Cantidad '+r.qty+' · Costo unitario '+money(r.unitCost)+' · Materiales: '+window._pcItems.filter(x=>x.name).map(x=>x.name).join(', ');let {error}=await sb.from('catalogo_productos').insert({codigo:code,categoria:'CALCULADOS',nombre:name,descripcion:desc,tipo:'Producto',precio_venta:r.price,controla_inventario:false,activo:true,created_by:currentUser.id});if(error)return alert('No se pudo guardar: '+error.message);alert('Producto guardado en el catálogo con precio unitario '+money(r.price));};};
+  const calc=()=>{const materials=window._pcItems.reduce((a,x)=>a+(+x.qty||0)*(+x.cost||0),0);const proc=[...document.querySelectorAll('.pcProc')].reduce((a,e)=>a+(+e.value||0),0);const base=[...document.querySelectorAll('.pcBase')].reduce((a,e)=>a+(+e.value||0),0);const before=materials+proc+base;const waste=before*Math.max(0,+pcWaste.value||0)/100;const totalCost=before+waste;const r=results(totalCost,+pcQty.value,+pcMargin.value,+pcDesired.value);pcRes.innerHTML=`<div style="margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#faf6ef"><b>Resumen del costo TOTAL</b><div style="margin-top:7px;font-size:14px">Materiales ${money(materials)} · Procesos ${money(proc)} · Básicos ${money(base)} · Merma ${money(waste)}</div><div style="margin-top:6px;font-size:13px;color:var(--muted)">Procesos y costos básicos se suman una sola vez al trabajo completo.</div></div>${resultHTML(r)}<div style="margin-top:10px"><button class="btn alt" id="pcSaveCatalog">Guardar como producto del catálogo</button></div>`;bindUse(r);document.getElementById('pcSaveCatalog').onclick=async()=>{let name=pcName.value.trim();if(!name)return alert('Escribe el nombre del producto.');let code=('CAL-'+Date.now().toString().slice(-6));let desc='Costo total del trabajo '+money(totalCost)+' · Cantidad '+r.qty+' · Costo unitario '+money(r.unitCost)+' · Materiales: '+window._pcItems.filter(x=>x.name).map(x=>x.name).join(', ');let procesos={},basicos={};document.querySelectorAll('.pcProc').forEach(e=>procesos[e.previousElementSibling?.textContent||e.id]=Number(e.value||0));document.querySelectorAll('.pcBase').forEach(e=>basicos[e.previousElementSibling?.textContent||e.id]=Number(e.value||0));
+let detalle={materiales:window._pcItems.map(x=>({...x})),procesos,basicos,mermaPorcentaje:Number(pcWaste.value||0),mermaMonto:waste,margen:Number(pcMargin.value||0),resultado:r};
+let {error:historyError}=await sb.from('ej_calculos_precio').insert({nombre:name,modo:'detallado',detalle,created_by:currentUser.id});
+if(historyError)return alert('No se pudo guardar el desglose: '+historyError.message);
+let {error}=await sb.from('catalogo_productos').insert({codigo:code,categoria:'CALCULADOS',nombre:name,descripcion:desc,tipo:'Producto',precio_venta:r.price,controla_inventario:false,activo:true,created_by:currentUser.id});
+if(error)return alert('El cálculo quedó guardado en el historial, pero no se pudo agregar al catálogo: '+error.message);
+alert('Cálculo completo guardado en el historial y producto agregado al catálogo.');};};
   pcAdd.onclick=()=>{window._pcItems.push({source:'inventory',product_id:'',name:'',qty:1,cost:0});drawItems();calc()};drawItems();document.querySelectorAll('.pcProc,.pcBase').forEach(e=>e.oninput=calc);['pcQty','pcWaste','pcMargin','pcDesired'].forEach(id=>document.getElementById(id).oninput=calc);calc();
  };
  render();
