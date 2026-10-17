@@ -1007,8 +1007,8 @@ async function pcHistory(){
  if(saved.error||old.error){content.innerHTML='<div class="panel">No se pudo cargar el historial: '+esc((saved.error||old.error).message)+'</div>';return;}
  window._pcSavedCalculations=saved.data||[];
  window._pcLegacyCalculations=old.data||[];
- const newer=(saved.data||[]).map(x=>({date:x.created_at,name:x.nombre,kind:'Detallado',price:x.detalle?.resultado?.price,button:'<button class="btn alt" onclick="pcShowSaved(\\''+x.id+'\\')">Ver desglose</button>'}));
- const legacy=(old.data||[]).map(x=>({date:x.created_at,name:x.nombre,kind:'Anterior · resumen',price:x.precio_venta,button:'<button class="btn alt" onclick="pcShowLegacy(\\''+x.id+'\\')">Ver resumen</button>'}));
+ const newer=(saved.data||[]).map(x=>({date:x.created_at,name:x.nombre,kind:'Detallado',price:x.detalle?.resultado?.price,button:'<button class="btn alt" onclick="pcShowSaved(&quot;'+x.id+'&quot;)">Ver desglose</button>'}));
+ const legacy=(old.data||[]).map(x=>({date:x.created_at,name:x.nombre,kind:'Anterior · resumen',price:x.precio_venta,button:'<button class="btn alt" onclick="pcShowLegacy(&quot;'+x.id+'&quot;)">Ver resumen</button>'}));
  const rows=[...newer,...legacy].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).map(x=>'<tr data-search="'+esc(x.name+' '+x.kind)+'"><td>'+esc(x.date?new Date(x.date).toLocaleDateString('es-PA'):'—')+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.kind)+'</td><td>'+money(x.price)+'</td><td>'+x.button+'</td></tr>').join('');
  content.innerHTML='<div class="panel"><div class="head"><h2>Historial de cálculos</h2><button class="btn alt" onclick="priceCalculator()">Nueva calculadora</button></div><p>Los cálculos anteriores muestran la información conservada en el catálogo; los nuevos muestran su desglose completo. Consultarlos aquí no crea productos duplicados.</p>'+searchBox('pcHistorySearch','pcHistoryTable','Buscar cálculo por nombre')+'<div style="overflow:auto"><table id="pcHistoryTable"><thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Precio</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>'+(rows?'':'<p>No hay cálculos registrados todavía.</p>')+'</div>';
 }
