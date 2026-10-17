@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.22</title>
+<title>EJ Inspiration | Gestión V25.23</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -345,7 +345,7 @@ async function catalog(){
  if(error)return content.innerHTML=`<div class="panel">Error: ${esc(error.message)}</div>`;
  window._inventoryForCatalog=inv||[]; window._catalogRows=cats||[]; window._catalogCategories=[...EJ_CATEGORIES,...(cats||[]).map(x=>x.categoria).filter(Boolean)];
  const nums=(cats||[]).map(x=>/^\d+$/.test(String(x.codigo||''))?Number(x.codigo):0);window._nextCatalogCode=String(Math.max(0,...nums)+1).padStart(4,'0');
- let rows=(cats||[]).map(x=>`<tr data-search="${esc([x.codigo,x.categoria,x.nombre,x.descripcion,x.tipo].join(' '))}"><td>${esc(x.codigo||"—")}</td><td>${esc(x.categoria||"—")}</td><td><b>${esc(x.nombre)}</b><br><small>${esc(x.descripcion||"")}</small></td><td>${esc(x.tipo)}</td><td>${money(x.precio_venta)}</td><td>${x.controla_inventario?"Sí":"No"}</td><td>${esc(x.productos?.producto||"—")}</td><td><button class="btn alt" onclick='editCatalog(${JSON.stringify(JSON.stringify(x))})'>Editar</button></td></tr>`).join("");
+ let rows=(cats||[]).map(x=>`<tr data-search="${esc([x.codigo,x.categoria,x.nombre,x.descripcion,x.tipo].join(' '))}"><td>${esc(x.codigo||"—")}</td><td>${esc(x.categoria||"—")}</td><td><b>${esc(x.nombre)}</b><br><small>${esc(x.descripcion||"")}</small></td><td>${esc(x.tipo)}</td><td>${money(x.precio_venta)}</td><td>${x.controla_inventario?"Sí":"No"}</td><td>${esc(x.productos?.producto||"—")}</td><td><button class="btn alt" onclick='editCatalog(${JSON.stringify(JSON.stringify(x))})'>Editar</button> <button class="btn alt" onclick="deleteCatalog('${x.id}')">Eliminar</button></td></tr>`).join("");
  content.innerHTML=`<div class="panel"><div class="head"><h2>Catálogo de productos</h2><button class="btn" onclick="catalogForm()">+ Nuevo producto</button></div>${searchBox('catSearch','catTable','Buscar por código, categoría o producto...')}
  <div id="catForm" class="hidden"></div><div style="overflow:auto"><table id="catTable"><thead><tr><th>Código</th><th>Categoría</th><th>Producto / servicio</th><th>Tipo</th><th>Precio pred.</th><th>Controla inventario</th><th>Vinculado a</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
@@ -364,6 +364,14 @@ function catalogForm(x=null){
  <button class="btn" onclick="saveCatalog('${x?.id||""}')">Guardar</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0">`;
 }
 function editCatalog(raw){catalogForm(JSON.parse(raw))}
+async function deleteCatalog(id){
+ const x=(window._catalogRows||[]).find(p=>p.id===id);
+ if(!x)return alert('No se encontró el producto.');
+ if(!confirm('¿Eliminar del catálogo '+x.nombre+' ('+(x.codigo||'sin código')+')? Esta acción no se puede deshacer.'))return;
+ const {error}=await sb.rpc('ej_eliminar_producto_catalogo',{p_id:id});
+ if(error)return alert('No se pudo eliminar: '+error.message);
+ await catalog();
+}
 async function saveCatalog(id){
  let controls=catstock.value==="true";
  if(!catname.value.trim())return alert("Escribe el nombre."); if(!catcat.value.trim())return alert("Selecciona o escribe una categoría.");
