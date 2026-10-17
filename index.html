@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.24</title>
+<title>EJ Inspiration | Gestión V25.25</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -1000,11 +1000,21 @@ function viewPurchaseExpense(id){
 
 
 async function pcHistory(){
- const {data,error}=await sb.from('ej_calculos_precio').select('id,nombre,modo,detalle,created_at').order('created_at',{ascending:false}).limit(150);
- if(error)return alert('No se pudo cargar el historial: '+error.message);
- window._pcSavedCalculations=data||[];
- const rows=(data||[]).map(x=>'<tr><td>'+esc(new Date(x.created_at).toLocaleDateString('es-PA'))+'</td><td>'+esc(x.nombre)+'</td><td>'+esc(x.modo)+'</td><td>'+money(x.detalle?.resultado?.price)+'</td><td><button class="btn alt" onclick="pcShowSaved(\''+x.id+'\')">Ver desglose</button></td></tr>').join('');
- content.innerHTML='<div class="panel"><div class="head"><h2>Historial de cálculos</h2><button class="btn alt" onclick="priceCalculator()">Nueva calculadora</button></div><p>Consulta los costos y materiales guardados desde la versión V25.24. Los cálculos anteriores solo conservan el resumen que se guardó en el catálogo.</p>'+searchBox('pcHistorySearch','pcHistoryTable','Buscar cálculo por nombre')+'<div style="overflow:auto"><table id="pcHistoryTable"><thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Precio</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+ const [saved,old]=await Promise.all([
+  sb.from('ej_calculos_precio').select('id,nombre,modo,detalle,created_at').order('created_at',{ascending:false}).limit(250),
+  sb.from('catalogo_productos').select('id,codigo,nombre,descripcion,precio_venta,created_at,categoria').or('codigo.ilike.CAL-%,categoria.eq.CALCULADOS').order('created_at',{ascending:false}).limit(500)
+ ]);
+ if(saved.error||old.error){content.innerHTML='<div class="panel">No se pudo cargar el historial: '+esc((saved.error||old.error).message)+'</div>';return;}
+ window._pcSavedCalculations=saved.data||[];
+ window._pcLegacyCalculations=old.data||[];
+ const newer=(saved.data||[]).map(x=>({date:x.created_at,name:x.nombre,kind:'Detallado',price:x.detalle?.resultado?.price,button:'<button class="btn alt" onclick="pcShowSaved(\\''+x.id+'\\')">Ver desglose</button>'}));
+ const legacy=(old.data||[]).map(x=>({date:x.created_at,name:x.nombre,kind:'Anterior · resumen',price:x.precio_venta,button:'<button class="btn alt" onclick="pcShowLegacy(\\''+x.id+'\\')">Ver resumen</button>'}));
+ const rows=[...newer,...legacy].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).map(x=>'<tr data-search="'+esc(x.name+' '+x.kind)+'"><td>'+esc(x.date?new Date(x.date).toLocaleDateString('es-PA'):'—')+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.kind)+'</td><td>'+money(x.price)+'</td><td>'+x.button+'</td></tr>').join('');
+ content.innerHTML='<div class="panel"><div class="head"><h2>Historial de cálculos</h2><button class="btn alt" onclick="priceCalculator()">Nueva calculadora</button></div><p>Los cálculos anteriores muestran la información conservada en el catálogo; los nuevos muestran su desglose completo. Consultarlos aquí no crea productos duplicados.</p>'+searchBox('pcHistorySearch','pcHistoryTable','Buscar cálculo por nombre')+'<div style="overflow:auto"><table id="pcHistoryTable"><thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Precio</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>'+(rows?'':'<p>No hay cálculos registrados todavía.</p>')+'</div>';
+}
+function pcShowLegacy(id){
+ const x=(window._pcLegacyCalculations||[]).find(z=>z.id===id);if(!x)return;
+ content.innerHTML='<div class="panel"><div class="head"><h2>'+esc(x.nombre)+'</h2><button class="btn alt" onclick="pcHistory()">Volver al historial</button></div><p><b>Cálculo anterior · '+esc(x.codigo||'')+'</b></p><p><b>Precio guardado:</b> '+money(x.precio_venta)+'</p><p><b>Resumen conservado:</b></p><div style="white-space:pre-wrap;padding:14px;background:var(--bg);border-radius:12px">'+esc(x.descripcion||'No se conservó una descripción del cálculo.')+'</div><p style="color:var(--muted)">Este cálculo se guardó antes de habilitar el historial detallado. Los importes que no figuran en el resumen original no pueden recuperarse con precisión.</p></div>';
 }
 function pcShowSaved(id){
  const x=(window._pcSavedCalculations||[]).find(v=>v.id===id);if(!x)return;
