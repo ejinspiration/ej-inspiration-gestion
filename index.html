@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.27</title>
+<title>EJ Inspiration | Gestión V25.28</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -1028,7 +1028,7 @@ async function pcShowLegacy(id){
  const d=data?.detalle||null;window._pcLegacyDetail=d;
  const total=d?((d.materiales||[]).reduce((v,z)=>v+Number(z.cantidad||0)*Number(z.costo||0),0)+Object.values(d.procesos||{}).reduce((v,n)=>v+Number(n||0),0)+Object.values(d.basicos||{}).reduce((v,n)=>v+Number(n||0),0)):0;
  const estimated=total*(1+Number(d?.merma||0)/100);
- content.innerHTML='<div class="panel"><div class="head"><h2>'+esc(x.nombre)+'</h2><button class="btn alt" onclick="pcHistory()">Volver al historial</button></div><p><b>Cálculo anterior · '+esc(x.codigo||'')+'</b></p><p><b>Precio guardado:</b> '+money(x.precio_venta)+'</p><p><b>Resumen original:</b></p><div style="white-space:pre-wrap;padding:14px;background:var(--bg);border-radius:12px">'+esc(x.descripcion||'No se conservó una descripción del cálculo.')+'</div><p><button class="btn" onclick="pcEditLegacy(&quot;'+id+'&quot;)">'+(d?'Editar detalles agregados':'Agregar detalles del cálculo')+'</button></p>'+(d?'<div class="panel"><h3>Desglose agregado manualmente</h3><p>Materiales: '+(d.materiales||[]).map(z=>esc(z.nombre)+' ('+Number(z.cantidad||0)+' × '+money(z.costo)+')').join(' · ')+'</p><p>Procesos: '+Object.entries(d.procesos||{}).map(([k,v])=>esc(k)+': '+money(v)).join(' · ')+'</p><p>Costos básicos: '+Object.entries(d.basicos||{}).map(([k,v])=>esc(k)+': '+money(v)).join(' · ')+'</p><p><b>Costos reconstruidos:</b> '+money(estimated)+' · <b>Costo unitario estimado:</b> '+money(estimated/Math.max(1,Number(d.cantidad||1)))+'</p><p style="color:var(--muted)">Este desglose fue ingresado posteriormente y no sustituye el cálculo original.</p></div>':'<p style="color:var(--muted)">Los importes que no figuran en el resumen original no se pueden recuperar automáticamente.</p>')+'</div>';
+ content.innerHTML='<div class="panel"><div class="head"><h2>'+esc(x.nombre)+'</h2><button class="btn alt" onclick="pcHistory()">Volver al historial</button></div><p><b>Cálculo anterior · '+esc(x.codigo||'')+'</b></p><p><b>Precio guardado:</b> '+money(x.precio_venta)+'</p><p><b>Resumen original:</b></p><div style="white-space:pre-wrap;padding:14px;background:var(--bg);border-radius:12px">'+esc(x.descripcion||'No se conservó una descripción del cálculo.')+'</div><p><button class="btn" onclick="pcEditLegacy(&quot;'+id+'&quot;)">'+(d?'Editar cálculo original':'Editar cálculo original')+'</button></p>'+(d?'<div class="panel"><h3>Desglose agregado manualmente</h3><p>Materiales: '+(d.materiales||[]).map(z=>esc(z.nombre)+' ('+Number(z.cantidad||0)+' × '+money(z.costo)+')').join(' · ')+'</p><p>Procesos: '+Object.entries(d.procesos||{}).map(([k,v])=>esc(k)+': '+money(v)).join(' · ')+'</p><p>Costos básicos: '+Object.entries(d.basicos||{}).map(([k,v])=>esc(k)+': '+money(v)).join(' · ')+'</p><p><b>Costos reconstruidos:</b> '+money(estimated)+' · <b>Costo unitario estimado:</b> '+money(estimated/Math.max(1,Number(d.cantidad||1)))+'</p><p style="color:var(--muted)">Este desglose fue ingresado posteriormente y no sustituye el cálculo original.</p></div>':'<p style="color:var(--muted)">Los importes que no figuran en el resumen original no se pueden recuperar automáticamente.</p>')+'</div>';
 }
 function pcEditLegacy(id){
  const x=(window._pcLegacyCalculations||[]).find(z=>z.id===id);if(!x)return;
@@ -1037,8 +1037,8 @@ function pcEditLegacy(id){
  const field=(label,id,value)=>'<div><label>'+label+'</label><input id="'+id+'" type="number" min="0" step="0.01" value="'+Number(value||0)+'"></div>';
  const names=['Diseño','Impresión / tinta','Corte','Grabado / sublimación / DTF','Armado / empaque','Otro proceso'];
  const bases=['Electricidad','Desgaste / mantenimiento','Consumibles / pruebas'];
- content.innerHTML='<div class="panel"><div class="head"><h2>Completar cálculo · '+esc(x.nombre)+'</h2><button class="btn alt" onclick="pcShowLegacy(&quot;'+id+'&quot;)">Cancelar</button></div><p>Los datos que ingreses se guardarán por separado. <b>El precio actual '+money(x.precio_venta)+' no cambiará.</b></p><div class="grid">'+field('Cantidad producida','plQty',d.cantidad||1)+field('Merma / imprevistos (%)','plWaste',d.merma||0)+'</div><h3>Materiales y componentes</h3><div id="plMaterials"></div><button class="btn alt" onclick="pcAddLegacyMaterial()">+ Agregar material</button><h3>Trabajo y procesos (total del trabajo)</h3><div class="grid">'+names.map((n,i)=>field(n,'plProc'+i,d.procesos?.[n]||0)).join('')+'</div><h3>Costos básicos (total del trabajo)</h3><div class="grid">'+bases.map((n,i)=>field(n,'plBase'+i,d.basicos?.[n]||0)).join('')+'</div><p><button class="btn" onclick="pcSaveLegacy(&quot;'+id+'&quot;)">Guardar detalles</button></p></div>';
- window._plMaterials=materials.map(z=>({...z}));pcDrawLegacyMaterials();
+ content.innerHTML='<div class="panel"><div class="head"><h2>Completar cálculo · '+esc(x.nombre)+'</h2><button class="btn alt" onclick="pcShowLegacy(&quot;'+id+'&quot;)">Cancelar</button></div><p>Edita los costos y el precio del mismo producto. Solo se actualizarán pedidos pendientes sin cobros y cotizaciones pendientes sin convertir; los confirmados o cobrados conservarán sus precios.</p><div class="grid">'+field('Cantidad producida','plQty',d.cantidad||1)+field('Merma / imprevistos (%)','plWaste',d.merma||0)+'</div><h3>Materiales y componentes</h3><div id="plMaterials"></div><button class="btn alt" onclick="pcAddLegacyMaterial()">+ Agregar material</button><h3>Trabajo y procesos (total del trabajo)</h3><div class="grid">'+names.map((n,i)=>field(n,'plProc'+i,d.procesos?.[n]||0)).join('')+'</div><h3>Costos básicos (total del trabajo)</h3><div class="grid">'+bases.map((n,i)=>field(n,'plBase'+i,d.basicos?.[n]||0)).join('')+'</div><h3>Resumen y precio de venta</h3><div class="grid">'+field('Precio de venta por unidad','plPrice',x.precio_venta)+'</div><div id="plSummary" class="panel"></div><p><button class="btn alt" onclick="pcPreviewLegacy()">Recalcular costos</button> <button class="btn" onclick="pcSaveLegacy(&quot;'+id+'&quot;)">Guardar cambios en este cálculo</button></p></div>';
+ window._plMaterials=materials.map(z=>({...z}));pcDrawLegacyMaterials();pcPreviewLegacy();
 }
 function pcDrawLegacyMaterials(){
  const root=document.getElementById('plMaterials');if(!root)return;
@@ -1051,6 +1051,15 @@ function pcSyncLegacyMaterials(){
 }
 function pcAddLegacyMaterial(){pcSyncLegacyMaterials();window._plMaterials.push({nombre:'',cantidad:1,costo:0});pcDrawLegacyMaterials();}
 function pcRemoveLegacyMaterial(i){pcSyncLegacyMaterials();window._plMaterials.splice(i,1);pcDrawLegacyMaterials();}
+function pcPreviewLegacy(){
+ pcSyncLegacyMaterials();
+ const qty=Number(document.getElementById('plQty')?.value||1),merma=Number(document.getElementById('plWaste')?.value||0);
+ const mat=window._plMaterials.reduce((v,m)=>v+Number(m.cantidad||0)*Number(m.costo||0),0);
+ const pro=Array.from({length:6},(_,i)=>Number(document.getElementById('plProc'+i)?.value||0)).reduce((a,b)=>a+b,0);
+ const bas=Array.from({length:3},(_,i)=>Number(document.getElementById('plBase'+i)?.value||0)).reduce((a,b)=>a+b,0);
+ const total=(mat+pro+bas)*(1+merma/100),price=Number(document.getElementById('plPrice')?.value||0);
+ const el=document.getElementById('plSummary');if(el)el.innerHTML='<b>Resumen del cálculo</b><p>Materiales '+money(mat)+' · Procesos '+money(pro)+' · Básicos '+money(bas)+' · Merma '+money(total-mat-pro-bas)+'</p><div class="cards"><div class="card">Costo total<div class="metric">'+money(total)+'</div></div><div class="card">Costo unitario<div class="metric">'+money(total/Math.max(1,qty))+'</div></div><div class="card">Precio por unidad<div class="metric">'+money(price)+'</div></div><div class="card">Ganancia total estimada<div class="metric">'+money(price*qty-total)+'</div></div></div>';
+}
 async function pcSaveLegacy(id){
  pcSyncLegacyMaterials();
  const procNames=['Diseño','Impresión / tinta','Corte','Grabado / sublimación / DTF','Armado / empaque','Otro proceso'];
@@ -1060,9 +1069,13 @@ async function pcSaveLegacy(id){
  baseNames.forEach((n,i)=>basicos[n]=Number(document.getElementById('plBase'+i).value||0));
  const detalle={cantidad:Number(document.getElementById('plQty').value||1),merma:Number(document.getElementById('plWaste').value||0),materiales:window._plMaterials,procesos,basicos};
  if(detalle.cantidad<1||detalle.merma<0||detalle.merma>100||detalle.materiales.some(m=>m.cantidad<0||m.costo<0)||Object.values(procesos).some(v=>v<0)||Object.values(basicos).some(v=>v<0))return alert('Revisa los importes y cantidades.');
- const {error}=await sb.from('ej_calculos_anteriores_detalle').upsert({catalogo_id:id,detalle,updated_by:currentUser.id,updated_at:new Date().toISOString()},{onConflict:'catalogo_id'});
- if(error)return alert('No se pudo guardar: '+error.message);
- alert('Detalles guardados. El precio del catálogo permanece igual.');await pcShowLegacy(id);
+ const precio=Number(document.getElementById('plPrice')?.value);
+ if(!Number.isFinite(precio)||precio<0)return alert('Indica un precio válido.');
+ if(!confirm('¿Guardar este cálculo y su precio actualizado? Se modificarán únicamente pedidos pendientes sin cobros y cotizaciones pendientes no convertidas. Los demás conservarán sus importes.'))return;
+ const {data,error}=await sb.rpc('ej_actualizar_calculo_existente',{p_id:id,p_detalle:detalle,p_precio:precio});
+ if(error)return alert('No se pudo actualizar el cálculo: '+error.message);
+ const x=(window._pcLegacyCalculations||[]).find(z=>z.id===id);if(x)x.precio_venta=precio;
+ alert('Cálculo original actualizado. Líneas de pedidos pendientes: '+(data?.pedidos_actualizados||0)+'. Líneas de cotizaciones pendientes: '+(data?.cotizaciones_actualizadas||0)+'.');await pcShowLegacy(id);
 }
 function pcShowSaved(id){
  const x=(window._pcSavedCalculations||[]).find(v=>v.id===id);if(!x)return;
