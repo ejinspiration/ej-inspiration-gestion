@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.29</title>
+<title>EJ Inspiration | Gestión V25.30</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -623,11 +623,9 @@ async function saveOrderLines(id){
  const cobrado=(o?.cobros||[]).reduce((v,c)=>v+Number(c.monto||0),0);
  if(subtotal-descuento+0.001<cobrado)return alert('El total con descuento no puede ser menor que lo ya cobrado.');
  if(!confirm('¿Guardar productos y descuento? Total estimado: '+money(subtotal-descuento)))return;
- const {data,error}=await sb.rpc("editar_pedido_lineas",{p_pedido_id:id,p_lineas:lines});
- if(error)return alert("No se pudo editar: "+error.message);
- const {error:de}=await sb.from('pedidos').update({descuento,total:Math.round((Number(data?.total??subtotal)-descuento)*100)/100}).eq('id',id);
- if(de){await orders();return alert('Los productos se guardaron, pero el descuento NO se pudo aplicar: '+de.message);}
- alert('Pedido actualizado. Descuento: '+money(descuento)+' · Total: '+money(Number(data?.total??subtotal)-descuento)+' · Saldo: '+money(Math.max(0,Number(data?.total??subtotal)-descuento-cobrado)));
+ const {data,error}=await sb.rpc("editar_pedido_lineas_con_descuento",{p_pedido_id:id,p_lineas:lines,p_descuento:descuento});
+ if(error)return alert("No se pudo guardar: "+error.message);
+ alert('Pedido actualizado. Descuento: '+money(descuento)+' · Total: '+money(data.total)+' · Saldo: '+money(data.saldo));
  await orders();
 }
 function printOrder(id){
