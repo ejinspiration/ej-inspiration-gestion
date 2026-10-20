@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.28</title>
+<title>EJ Inspiration | Gestión V25.29</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -566,8 +566,11 @@ function openLinesEditor(id){
  linesEditor.innerHTML=`<div class="panel" style="margin-top:12px"><h3>Editar líneas del pedido</h3>
  <p style="color:var(--muted)">Puedes editar productos del catálogo o productos manuales. Si un producto manual quieres conservarlo para futuras ventas, marca “Agregar este producto al Catálogo”.</p>
  <div id="editLines">${(o.pedido_detalles||[]).map(lineEditorRow).join("")}</div>
- <button class="btn alt" onclick="editLines.insertAdjacentHTML('beforeend',lineEditorRow())">+ Agregar línea</button>
- <button class="btn" onclick="saveOrderLines('${id}')">Guardar productos</button></div>`;
+ <button class="btn alt" onclick="editLines.insertAdjacentHTML('beforeend',lineEditorRow());updateOrderDiscountPreview()">+ Agregar línea</button>
+ <div style="margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:12px"><h3>Descuento del pedido</h3><div class="grid"><div><label>Tipo de descuento</label><select id="orderDiscountType" onchange="updateOrderDiscountPreview()"><option value="amount">Monto en dólares ($)</option><option value="percent">Porcentaje (%)</option></select></div><div><label>Descuento</label><input id="orderDiscountValue" type="number" min="0" step="0.01" value="${Number(o.descuento||0)}" oninput="updateOrderDiscountPreview()"></div></div><p id="orderDiscountPreview"></p></div>
+ <button class="btn" onclick="saveOrderLines('${id}')">Guardar productos y descuento</button></div>`;
+ document.querySelectorAll('#editLines .lqty,#editLines .lprice').forEach(e=>e.addEventListener('input',updateOrderDiscountPreview));
+ updateOrderDiscountPreview();
 }
 async function saveManualCatalogFromEdit(name,price){
  const norm=name.trim().toLowerCase();
@@ -577,6 +580,14 @@ async function saveManualCatalogFromEdit(name,price){
  const payload={codigo:code,categoria:'MANUAL',nombre:name.trim(),descripcion:'Agregado desde edición de pedido',tipo:'Producto',precio_venta:Number(price||0),controla_inventario:false,activo:true,created_by:currentUser.id};
  const {data,error}=await sb.from('catalogo_productos').insert(payload).select('id').single();
  if(error)throw error; return data.id;
+}
+function updateOrderDiscountPreview(){
+ const rows=[...document.querySelectorAll('#editLines .v12line')];
+ const subtotal=rows.reduce((v,r)=>v+Number(r.querySelector('.lqty')?.value||0)*Number(r.querySelector('.lprice')?.value||0),0);
+ const type=document.getElementById('orderDiscountType')?.value||'amount',value=Number(document.getElementById('orderDiscountValue')?.value||0);
+ const discount=type==='percent'?subtotal*value/100:value;
+ const out=document.getElementById('orderDiscountPreview');
+ if(out)out.innerHTML='<b>Subtotal:</b> '+money(subtotal)+' · <b>Descuento:</b> '+money(discount)+' · <b>Total:</b> '+money(Math.max(0,subtotal-discount));
 }
 async function saveOrderLines(id){
  const rows=[...document.querySelectorAll("#editLines .v12line")];
@@ -602,10 +613,21 @@ async function saveOrderLines(id){
    lines.push({catalogo_producto_id,descripcion,cantidad,precio_unitario,personalizacion});
   }
  }catch(e){return alert('No se pudo agregar al catálogo: '+e.message)}
- if(!confirm("¿Guardar los cambios de productos de este pedido?"))return;
+ const o=(window._orders||[]).find(x=>x.id===id);
+ const subtotal=lines.reduce((v,l)=>v+l.cantidad*l.precio_unitario,0);
+ const type=document.getElementById('orderDiscountType')?.value||'amount';
+ const value=Number(document.getElementById('orderDiscountValue')?.value||0);
+ if(!Number.isFinite(value)||value<0||(type==='percent'&&value>100))return alert('Indica un descuento válido (porcentaje entre 0 y 100).');
+ const descuento=Math.round((type==='percent'?subtotal*value/100:value)*100)/100;
+ if(descuento>subtotal)return alert('El descuento no puede superar el subtotal.');
+ const cobrado=(o?.cobros||[]).reduce((v,c)=>v+Number(c.monto||0),0);
+ if(subtotal-descuento+0.001<cobrado)return alert('El total con descuento no puede ser menor que lo ya cobrado.');
+ if(!confirm('¿Guardar productos y descuento? Total estimado: '+money(subtotal-descuento)))return;
  const {data,error}=await sb.rpc("editar_pedido_lineas",{p_pedido_id:id,p_lineas:lines});
  if(error)return alert("No se pudo editar: "+error.message);
- alert(`Pedido actualizado. Nuevo total: ${money(data.total)} · Saldo: ${money(data.saldo)}`);
+ const {error:de}=await sb.from('pedidos').update({descuento,total:Math.round((Number(data?.total??subtotal)-descuento)*100)/100}).eq('id',id);
+ if(de){await orders();return alert('Los productos se guardaron, pero el descuento NO se pudo aplicar: '+de.message);}
+ alert('Pedido actualizado. Descuento: '+money(descuento)+' · Total: '+money(Number(data?.total??subtotal)-descuento)+' · Saldo: '+money(Math.max(0,Number(data?.total??subtotal)-descuento-cobrado)));
  await orders();
 }
 function printOrder(id){
