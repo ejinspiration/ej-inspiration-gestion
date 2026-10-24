@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.32</title>
+<title>EJ Inspiration | Gestión V25.33</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -472,7 +472,8 @@ function addOrderLine(){
  const isManual=oprod.value==="__manual__";
  let c=(window._catalog||[]).find(x=>x.id===oprod.value),q=Number(oqty.value||0),pr=Number(oprice.value);
  const variantId=ejInventoryForCollection(oprod.value)?document.getElementById("ejVariantNew")?.value:null;const variant=ejSelectedStock(variantId);
- if(ejInventoryForCollection(oprod.value)&&!variant)return alert("Selecciona el suéter físico, color y talla.");\n if(variant&&q>Number(variant.existencia))return alert("Existencia insuficiente para "+variant.producto+" "+variant.color+" "+variant.talla);
+ if(ejInventoryForCollection(oprod.value)&&!variant)return alert("Selecciona el suéter físico, color y talla.");
+ if(variant&&q>Number(variant.existencia))return alert("Existencia insuficiente para "+variant.producto+" "+variant.color+" "+variant.talla);
  if(!isManual&&!c)return alert("Selecciona un producto o servicio.");
  if(q<=0)return alert("La cantidad debe ser mayor que cero.");
  if(!Number.isFinite(pr)||pr<=0)return alert("Indica un precio de venta mayor que $0.00.");
@@ -615,7 +616,9 @@ async function saveOrderLines(id){
   for(const r of rows){
    let catalogo_producto_id=r.querySelector(".lcatalog").value;
    const cantidad=Number(r.querySelector(".lqty").value||0), precio_unitario=Number(r.querySelector(".lprice").value||0);
-   const personalizacion=r.querySelector(".lpersonal").value||null;\n   const variantId=ejInventoryForCollection(catalogo_producto_id)?r.querySelector('.lvariant')?.value:null;const variant=ejSelectedStock(variantId);\n   if(ejInventoryForCollection(catalogo_producto_id)&&!variant)return alert('Selecciona color y talla para cada suéter de la colección.');
+   const personalizacion=r.querySelector(".lpersonal").value||null;
+   const variantId=ejInventoryForCollection(catalogo_producto_id)?r.querySelector('.lvariant')?.value:null;const variant=ejSelectedStock(variantId);
+   if(ejInventoryForCollection(catalogo_producto_id)&&!variant)return alert('Selecciona color y talla para cada suéter de la colección.');
    let descripcion='';
    if(cantidad<=0)return alert("La cantidad debe ser mayor que cero.");
    if(precio_unitario<=0)return alert("El precio debe ser mayor que cero.");
