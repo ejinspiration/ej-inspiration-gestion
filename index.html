@@ -449,7 +449,7 @@ async function resolveOrderClient(){
  oclient.value=c.id;return c.id;
 }
 function ejInventoryOptions(selected=''){
- return '<option value="">No descontar inventario</option>'+(window._ejInventory||[]).map(x=>'<option value="'+x.id+'" '+(x.id===selected?'selected':'')+'>'+esc(x.producto)+' · '+esc(x.color||'Sin color')+' · '+esc(x.talla||'Sin talla')+' · disponibles: '+Number(x.existencia||0)+'</option>').join('');
+ return '<option value="">No descontar inventario</option>'+(window._ejInventory||[]).filter(x=>/su[eé]ter/i.test(x.producto||'')).map(x=>'<option value="'+x.id+'" '+(x.id===selected?'selected':'')+'>'+esc(x.producto)+' · '+esc(x.color||'Sin color')+' · '+esc(x.talla||'Sin talla')+' · disponibles: '+Number(x.existencia||0)+'</option>').join('');
 }
 function ejInventoryForCollection(id){return (window._catalog||[]).find(x=>x.id===id)?.codigo==='0005';}
 function ejToggleInventory(sel,edit=false){
