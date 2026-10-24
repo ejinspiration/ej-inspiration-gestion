@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.30</title>
+<title>EJ Inspiration | Gestión V25.31</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -393,6 +393,8 @@ async function orders(){
  ]);
  if(oe)return content.innerHTML=`<div class="panel">Error: ${esc(oe.message)}</div>`;
  window._clients=clientsData||[]; window._catalog=productsData||[]; window._orders=ordersData||[];
+ const {data:inventoryData,error:inventoryError}=await sb.from('productos').select('id,producto,color,talla,existencia,costo_unitario').eq('activo',true).order('producto');
+ window._ejInventory=inventoryData||[];if(inventoryError)console.warn('Inventario no disponible:',inventoryError.message);
  let rows=(ordersData||[]).map(o=>{
    let paid=(o.cobros||[]).reduce((s,c)=>s+Number(c.monto),0),bal=Math.max(Number(o.total)-paid,0);
    return `<tr data-search="${esc([o.numero,o.fecha,o.telefono,o.instagram,o.clientes?.nombre,o.fecha_entrega,o.estado].join(' '))}"><td>${esc(o.numero)}</td><td>${esc(o.fecha)}</td><td>${esc(o.clientes?.nombre||"—")}</td><td>${esc(o.fecha_entrega||"—")}<br>${deliveryAlert(o.fecha_entrega,o.estado)}</td><td>${esc(o.estado)}</td><td>${money(o.total)}</td><td>${money(bal)}</td><td><button class="btn alt" onclick="viewOrder('${o.id}')">Ver / Editar</button></td></tr>`
@@ -413,11 +415,11 @@ function newOrder(){
  <div><label>Canal de venta</label><select id="ochannel"><option>WhatsApp</option><option>Instagram</option><option>Tienda</option><option>Otro</option></select></div>
  <div><label>Descuento general ($)</label><input id="odiscount" type="number" min="0" step=".01" value="0" oninput="renderLines()"></div></div>
  <hr style="border:0;border-top:1px solid var(--line);margin:12px 0">
- <h3>Productos</h3><div class="grid"><div><label>Producto</label><select id="oprod" onchange="fillCatalogPrice()"><option value="">Seleccionar</option><option value="__manual__">+ Agregar producto manual</option>${products}</select></div>
+ <h3>Productos</h3><div class="grid"><div><label>Producto</label><select id="oprod" onchange="fillCatalogPrice();ejToggleInventory(this)"><option value="">Seleccionar</option><option value="__manual__">+ Agregar producto manual</option>${products}</select></div>
  <div><label>Cantidad</label><input id="oqty" type="number" min=".01" step=".01" value="1"></div>
  <div><label>Precio unitario de venta</label><input id="oprice" type="number" min="0" step=".01"></div>
  <div><label>Personalización</label><input id="opers"></div></div>
- <div id="omanualBox" class="hidden" style="margin-top:10px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fffaf3"><div class="grid"><div><label>Nombre del producto manual</label><input id="omanualName" placeholder="Ej.: Llavero personalizado"></div><div style="display:flex;align-items:end"><label style="display:flex;gap:8px;align-items:center;margin:0"><input id="omanualSave" type="checkbox" style="width:auto"> Guardar este producto en el Catálogo para futuras ventas</label></div></div></div>
+ <div id="ejNewVariant" style="display:none;margin:12px 0"><label>Suéter físico · color y talla (descuenta inventario)</label><select id="ejVariantNew"></select><small>Selecciona la combinación exacta. Para tallas distintas, agrega una línea por suéter.</small></div><div id="omanualBox" class="hidden" style="margin-top:10px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fffaf3"><div class="grid"><div><label>Nombre del producto manual</label><input id="omanualName" placeholder="Ej.: Llavero personalizado"></div><div style="display:flex;align-items:end"><label style="display:flex;gap:8px;align-items:center;margin:0"><input id="omanualSave" type="checkbox" style="width:auto"> Guardar este producto en el Catálogo para futuras ventas</label></div></div></div>
  <button class="btn alt" onclick="addOrderLine()">Agregar producto</button>
  <div id="lines" style="margin:14px 0"></div>
  <div class="grid"><div><label>Abono inicial</label><input id="odeposit" type="number" min="0" step=".01" value="0"></div>
@@ -446,6 +448,19 @@ async function resolveOrderClient(){
  }
  oclient.value=c.id;return c.id;
 }
+function ejInventoryOptions(selected=''){
+ return '<option value="">No descontar inventario</option>'+(window._ejInventory||[]).map(x=>'<option value="'+x.id+'" '+(x.id===selected?'selected':'')+'>'+esc(x.producto)+' · '+esc(x.color||'Sin color')+' · '+esc(x.talla||'Sin talla')+' · disponibles: '+Number(x.existencia||0)+'</option>').join('');
+}
+function ejInventoryForCollection(id){return (window._catalog||[]).find(x=>x.id===id)?.codigo==='0005';}
+function ejToggleInventory(sel,edit=false){
+ const c=(window._catalog||[]).find(x=>x.id===sel.value);
+ const holder=edit?sel.closest('.v12line')?.querySelector('.ejVariantBox'):document.getElementById('ejNewVariant');
+ if(!holder)return;
+ const show=!!(c?.controla_inventario||c?.codigo==='0005');
+ holder.style.display=show?'block':'none';
+ if(show){const input=holder.querySelector('select');if(input&&!input.options.length)input.innerHTML=ejInventoryOptions();}
+}
+function ejSelectedStock(id){return (window._ejInventory||[]).find(x=>x.id===id);}
 function fillCatalogPrice(){
  const manual=oprod.value==="__manual__";
  document.getElementById("omanualBox")?.classList.toggle("hidden",!manual);
@@ -455,7 +470,7 @@ function fillCatalogPrice(){
 }
 function addOrderLine(){
  const isManual=oprod.value==="__manual__";
- let c=(window._catalog||[]).find(x=>x.id===oprod.value),q=Number(oqty.value||0),pr=Number(oprice.value);
+ let c=(window._catalog||[]).find(x=>x.id===oprod.value),q=Number(oqty.value||0),pr=Number(oprice.value);\n const variantId=ejInventoryForCollection(oprod.value)?document.getElementById("ejVariantNew")?.value:null;const variant=ejSelectedStock(variantId);\n if(ejInventoryForCollection(oprod.value)&&!variant)return alert("Selecciona el suéter físico, color y talla.");\n if(variant&&q>Number(variant.existencia))return alert("Existencia insuficiente para "+variant.producto+" "+variant.color+" "+variant.talla);
  if(!isManual&&!c)return alert("Selecciona un producto o servicio.");
  if(q<=0)return alert("La cantidad debe ser mayor que cero.");
  if(!Number.isFinite(pr)||pr<=0)return alert("Indica un precio de venta mayor que $0.00.");
@@ -465,14 +480,14 @@ function addOrderLine(){
    orderLines.push({catalogo_producto_id:null,producto_id:null,descripcion:name,color:"",talla:"",personalizacion:opers.value.trim(),cantidad:q,precio_unitario:pr,descuento:0,controla_inventario:false,stock:null,guardar_catalogo:!!document.getElementById("omanualSave")?.checked});
  }else{
    if(c.controla_inventario && q>Number(c.productos?.existencia||0))return alert(`Solo hay ${c.productos?.existencia||0} unidades disponibles.`);
-   orderLines.push({catalogo_producto_id:c.id,producto_id:c.controla_inventario?c.producto_inventario_id:null,descripcion:c.nombre,color:c.productos?.color||"",talla:c.productos?.talla||"",personalizacion:opers.value.trim(),cantidad:q,precio_unitario:pr,descuento:0,controla_inventario:c.controla_inventario,stock:c.productos?.existencia??null});
+   orderLines.push({catalogo_producto_id:c.id,producto_id:variant?.id||(c.controla_inventario?c.producto_inventario_id:null),descripcion:c.nombre,color:variant?.color||c.productos?.color||"",talla:variant?.talla||c.productos?.talla||"",personalizacion:opers.value.trim(),cantidad:q,precio_unitario:pr,descuento:0,controla_inventario:c.controla_inventario||!!variant,stock:variant?.existencia??c.productos?.existencia??null});
  }
- oprod.value="";oqty.value=1;oprice.value="";opers.value="";if(document.getElementById("omanualName"))omanualName.value="";if(document.getElementById("omanualSave"))omanualSave.checked=false;document.getElementById("omanualBox")?.classList.add("hidden");renderLines();
+ oprod.value="";oqty.value=1;oprice.value="";opers.value="";if(document.getElementById("ejNewVariant"))document.getElementById("ejNewVariant").style.display="none";if(document.getElementById("omanualName"))omanualName.value="";if(document.getElementById("omanualSave"))omanualSave.checked=false;document.getElementById("omanualBox")?.classList.add("hidden");renderLines();
 }
 function renderLines(){
  if(!document.getElementById("lines"))return;
  let subtotal=orderLines.reduce((s,x)=>s+x.cantidad*x.precio_unitario-x.descuento,0),disc=Number(document.getElementById("odiscount")?.value||0),total=Math.max(subtotal-disc,0);
- lines.innerHTML=orderLines.length?`<table><thead><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Total</th><th></th></tr></thead><tbody>${orderLines.map((x,i)=>`<tr><td>${esc(x.descripcion)}${x.personalizacion?`<br><small>${esc(x.personalizacion)}</small>`:""}</td><td>${x.cantidad}</td><td>${money(x.precio_unitario)}</td><td>${money(x.cantidad*x.precio_unitario)}</td><td><button class="btn alt" onclick="removeLine(${i})">Quitar</button></td></tr>`).join("")}</tbody></table><p style="text-align:right"><b>Subtotal:</b> ${money(subtotal)} &nbsp; <b>Total:</b> ${money(total)}</p>`:"<p style='color:var(--muted)'>Aún no has agregado productos.</p>";
+ lines.innerHTML=orderLines.length?`<table><thead><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Total</th><th></th></tr></thead><tbody>${orderLines.map((x,i)=>`<tr><td>${esc(x.descripcion)}${x.color||x.talla?`<br><small>${esc(x.color||"")} · ${esc(x.talla||"")}</small>`:""}${x.personalizacion?`<br><small>${esc(x.personalizacion)}</small>`:""}</td><td>${x.cantidad}</td><td>${money(x.precio_unitario)}</td><td>${money(x.cantidad*x.precio_unitario)}</td><td><button class="btn alt" onclick="removeLine(${i})">Quitar</button></td></tr>`).join("")}</tbody></table><p style="text-align:right"><b>Subtotal:</b> ${money(subtotal)} &nbsp; <b>Total:</b> ${money(total)}</p>`:"<p style='color:var(--muted)'>Aún no has agregado productos.</p>";
 }
 function removeLine(i){orderLines.splice(i,1);renderLines()}
 async function saveManualCatalogItems(lines){
@@ -546,6 +561,7 @@ function lineEditorRow(line={}){
  <div><label>Precio</label><input class="lprice" type="number" min=".01" step=".01" value="${Number(line.precio_unitario||0)}"></div>
  <div><label>Personalización</label><input class="lpersonal" value="${esc(line.personalizacion||"")}"></div>
  <button class="btn alt" onclick="this.closest('.v12line').remove()">Quitar</button></div>
+ <div class="ejVariantBox" style="display:${ejInventoryForCollection(line.catalogo_producto_id)?'block':'none'};margin-top:10px"><label>Suéter físico · color y talla</label><select class="lvariant"><option value="">Seleccionar combinación</option>${ejInventoryOptions(line.producto_id||'')}</select></div>
  <div class="lmanualbox ${manual?'':'hidden'}" style="margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fffaf3">
  <div class="grid"><div><label>Nombre del producto manual</label><input class="lmanualname" value="${esc(manual?line.descripcion||'':'')}" placeholder="Ej.: Portarretrato personalizado"></div>
  <div style="display:flex;align-items:end"><label style="display:flex;gap:8px;align-items:center;margin:0"><input class="lmanualsave" type="checkbox" style="width:auto"> Agregar este producto al Catálogo</label></div></div></div>
@@ -553,7 +569,7 @@ function lineEditorRow(line={}){
 }
 function editLineProductChanged(sel){
  const row=sel.closest('.v12line'), manual=sel.value==='__manual__';
- row.querySelector('.lmanualbox')?.classList.toggle('hidden',!manual);
+ row.querySelector('.lmanualbox')?.classList.toggle('hidden',!manual);ejToggleInventory(sel,true);
  if(manual){if(!row.querySelector('.lmanualname').value)row.querySelector('.lmanualname').value=row.dataset.originalDesc||'';return;}
  fillLinePrice(sel);
 }
@@ -597,7 +613,7 @@ async function saveOrderLines(id){
   for(const r of rows){
    let catalogo_producto_id=r.querySelector(".lcatalog").value;
    const cantidad=Number(r.querySelector(".lqty").value||0), precio_unitario=Number(r.querySelector(".lprice").value||0);
-   const personalizacion=r.querySelector(".lpersonal").value||null;
+   const personalizacion=r.querySelector(".lpersonal").value||null;\n   const variantId=ejInventoryForCollection(catalogo_producto_id)?r.querySelector('.lvariant')?.value:null;const variant=ejSelectedStock(variantId);\n   if(ejInventoryForCollection(catalogo_producto_id)&&!variant)return alert('Selecciona color y talla para cada suéter de la colección.');
    let descripcion='';
    if(cantidad<=0)return alert("La cantidad debe ser mayor que cero.");
    if(precio_unitario<=0)return alert("El precio debe ser mayor que cero.");
@@ -610,7 +626,7 @@ async function saveOrderLines(id){
      if(!catalogo_producto_id)return alert("Selecciona un producto o usa + Agregar producto manual.");
      descripcion=(window._catalog||[]).find(c=>c.id===catalogo_producto_id)?.nombre||'';
    }
-   lines.push({catalogo_producto_id,descripcion,cantidad,precio_unitario,personalizacion});
+   lines.push({catalogo_producto_id,descripcion,cantidad,precio_unitario,personalizacion,producto_id:variant?.id||null});
   }
  }catch(e){return alert('No se pudo agregar al catálogo: '+e.message)}
  const o=(window._orders||[]).find(x=>x.id===id);
