@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.34</title>
+<title>EJ Inspiration | Gestión V25.35</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -449,7 +449,7 @@ async function resolveOrderClient(){
  oclient.value=c.id;return c.id;
 }
 function ejInventoryOptions(selected=''){
- return '<option value="">Selecciona talla y color del suéter</option>'+(window._ejInventory||[]).filter(x=>/su[eé]ter/i.test(x.producto||'')).map(x=>'<option value="'+x.id+'" '+(x.id===selected?'selected':'')+'>'+esc(x.producto)+' · '+esc(x.color||'Sin color')+' · '+esc(x.talla||'Sin talla')+' · disponibles: '+Number(x.existencia||0)+'</option>').join('');
+ return '<option value="">Selecciona talla y color del suéter</option>'+(window._ejInventory||[]).filter(x=>/su[eé]ter|t[ -]?shirt/i.test(x.producto||'')).map(x=>'<option value="'+x.id+'" '+(x.id===selected?'selected':'')+'>'+esc(x.producto)+' · '+esc(x.color||'Sin color')+' · '+esc(x.talla||'Sin talla')+' · disponibles: '+Number(x.existencia||0)+'</option>').join('');
 }
 function ejInventoryForCollection(id){return (window._catalog||[]).find(x=>x.id===id)?.codigo==='0005';}
 function ejToggleInventory(sel,edit=false){
