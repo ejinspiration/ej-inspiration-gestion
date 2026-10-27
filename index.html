@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.33</title>
+<title>EJ Inspiration | Gestión V25.34</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -406,7 +406,7 @@ async function orders(){
 function newOrder(){
  orderLines=[];
  let clients=(window._clients||[]).map(c=>`<option value="${c.id}">${esc(c.nombre)}</option>`).join("");
- let products=(window._catalog||[]).filter(p=>!p.controla_inventario||Number(p.productos?.existencia)>0).map(p=>`<option value="${p.id}">${esc(p.codigo||"")} · ${esc(p.nombre)}${p.controla_inventario?` · stock ${p.productos?.existencia??0}`:" · servicio"}</option>`).join("");
+ let products=(window._catalog||[]).filter(p=>ejInventoryForCollection(p.id)||!p.controla_inventario||Number(p.productos?.existencia)>0).map(p=>`<option value="${p.id}">${esc(p.codigo||"")} · ${esc(p.nombre)}${ejInventoryForCollection(p.id)?' · seleccionar talla y color':p.controla_inventario?` · stock ${p.productos?.existencia??0}`:' · servicio'}</option>`).join("");
  orderForm.classList.remove("hidden");
  orderForm.innerHTML=`<div class="grid">
  <div><label>Fecha del pedido</label><input value="${todayISO()}" readonly style="background:#f2eee7"></div><div><label>Cliente / Razón social <span style="font-weight:400;color:var(--muted)">(existente o nuevo)</span></label><input id="oname" list="oClientList" placeholder="Escribe el nombre o selecciona un cliente" oninput="fillClient()" autocomplete="off"><datalist id="oClientList">${(window._clients||[]).map(c=>`<option value="${esc(c.nombre)}"></option>`).join("")}</datalist><input id="oclient" type="hidden"></div>
@@ -449,7 +449,7 @@ async function resolveOrderClient(){
  oclient.value=c.id;return c.id;
 }
 function ejInventoryOptions(selected=''){
- return '<option value="">No descontar inventario</option>'+(window._ejInventory||[]).filter(x=>/su[eé]ter/i.test(x.producto||'')).map(x=>'<option value="'+x.id+'" '+(x.id===selected?'selected':'')+'>'+esc(x.producto)+' · '+esc(x.color||'Sin color')+' · '+esc(x.talla||'Sin talla')+' · disponibles: '+Number(x.existencia||0)+'</option>').join('');
+ return '<option value="">Selecciona talla y color del suéter</option>'+(window._ejInventory||[]).filter(x=>/su[eé]ter/i.test(x.producto||'')).map(x=>'<option value="'+x.id+'" '+(x.id===selected?'selected':'')+'>'+esc(x.producto)+' · '+esc(x.color||'Sin color')+' · '+esc(x.talla||'Sin talla')+' · disponibles: '+Number(x.existencia||0)+'</option>').join('');
 }
 function ejInventoryForCollection(id){return (window._catalog||[]).find(x=>x.id===id)?.codigo==='0005';}
 function ejToggleInventory(sel,edit=false){
@@ -458,7 +458,7 @@ function ejToggleInventory(sel,edit=false){
  if(!holder)return;
  const show=!!(c?.controla_inventario||c?.codigo==='0005');
  holder.style.display=show?'block':'none';
- if(show){const input=holder.querySelector('select');if(input&&!input.options.length)input.innerHTML=ejInventoryOptions();}
+ if(show){const input=holder.querySelector('select');if(input&&input.options.length<=1)input.innerHTML=ejInventoryOptions();}
 }
 function ejSelectedStock(id){return (window._ejInventory||[]).find(x=>x.id===id);}
 function fillCatalogPrice(){
@@ -473,7 +473,7 @@ function addOrderLine(){
  let c=(window._catalog||[]).find(x=>x.id===oprod.value),q=Number(oqty.value||0),pr=Number(oprice.value);
  const variantId=ejInventoryForCollection(oprod.value)?document.getElementById("ejVariantNew")?.value:null;const variant=ejSelectedStock(variantId);
  if(ejInventoryForCollection(oprod.value)&&!variant)return alert("Selecciona el suéter físico, color y talla.");
- if(variant&&q>Number(variant.existencia))return alert("Existencia insuficiente para "+variant.producto+" "+variant.color+" "+variant.talla);
+ if(variant){const reservado=orderLines.filter(x=>x.producto_id===variant.id).reduce((n,x)=>n+Number(x.cantidad||0),0);if(q+reservado>Number(variant.existencia))return alert('Existencia insuficiente para '+variant.producto+' '+variant.color+' '+variant.talla+'. Disponible: '+variant.existencia+', ya agregado al pedido: '+reservado);}
  if(!isManual&&!c)return alert("Selecciona un producto o servicio.");
  if(q<=0)return alert("La cantidad debe ser mayor que cero.");
  if(!Number.isFinite(pr)||pr<=0)return alert("Indica un precio de venta mayor que $0.00.");
@@ -482,7 +482,7 @@ function addOrderLine(){
    if(!name)return alert("Escribe el nombre del producto manual.");
    orderLines.push({catalogo_producto_id:null,producto_id:null,descripcion:name,color:"",talla:"",personalizacion:opers.value.trim(),cantidad:q,precio_unitario:pr,descuento:0,controla_inventario:false,stock:null,guardar_catalogo:!!document.getElementById("omanualSave")?.checked});
  }else{
-   if(c.controla_inventario && q>Number(c.productos?.existencia||0))return alert(`Solo hay ${c.productos?.existencia||0} unidades disponibles.`);
+   if(c.controla_inventario && !ejInventoryForCollection(c.id) && q>Number(c.productos?.existencia||0))return alert(`Solo hay ${c.productos?.existencia||0} unidades disponibles.`);
    orderLines.push({catalogo_producto_id:c.id,producto_id:variant?.id||(c.controla_inventario?c.producto_inventario_id:null),descripcion:c.nombre,color:variant?.color||c.productos?.color||"",talla:variant?.talla||c.productos?.talla||"",personalizacion:opers.value.trim(),cantidad:q,precio_unitario:pr,descuento:0,controla_inventario:c.controla_inventario||!!variant,stock:variant?.existencia??c.productos?.existencia??null});
  }
  oprod.value="";oqty.value=1;oprice.value="";opers.value="";if(document.getElementById("ejNewVariant"))document.getElementById("ejNewVariant").style.display="none";if(document.getElementById("omanualName"))omanualName.value="";if(document.getElementById("omanualSave"))omanualSave.checked=false;document.getElementById("omanualBox")?.classList.add("hidden");renderLines();
