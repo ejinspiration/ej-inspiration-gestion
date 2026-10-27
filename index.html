@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.35</title>
+<title>EJ Inspiration | Gestión V25.36</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -223,6 +223,32 @@ function openProductPhoto(url){
  const d=document.createElement('div');d.className='photo-modal';d.innerHTML=`<button aria-label="Cerrar">×</button><img src="${esc(url)}" alt="Foto del producto">`;
  d.onclick=e=>{if(e.target===d||e.target.tagName==='BUTTON')d.remove()};document.body.appendChild(d);
 }
+async function ejShirtStockPanel(){
+ const [counts,lines]=await Promise.all([
+  sb.from('ej_conteo_fisico_sueteres').select('producto_id,cantidad_fisica,fecha_conteo'),
+  sb.from('pedido_detalles').select('producto_id,cantidad,pedidos!inner(estado)').eq('pedidos.estado','Pendiente')
+ ]);
+ const target=document.getElementById('ejShirtStockPanel');if(!target)return;
+ if(counts.error||lines.error){target.innerHTML='<p>No se pudo consultar el conteo físico o las reservas.</p>';return;}
+ const countsMap=new Map((counts.data||[]).map(x=>[x.producto_id,x]));
+ const reserved=new Map();
+ (lines.data||[]).forEach(x=>reserved.set(x.producto_id,(reserved.get(x.producto_id)||0)+Number(x.cantidad||0)));
+ const rows=(window._inventoryRows||[]).filter(x=>['TEX-0017','TEX-0018','TEX-0019','TEX-0020'].includes(x.codigo)).sort((a,b)=>['S','M','L','XL'].indexOf(a.talla)-['S','M','L','XL'].indexOf(b.talla));
+ const html=rows.map(p=>{
+  const c=countsMap.get(p.id),physical=Number(c?.cantidad_fisica??p.existencia),pending=reserved.get(p.id)||0;
+  const free=Math.max(0,physical-pending),buy=Math.max(0,pending-physical);
+  return '<tr><td>Negro · '+esc(p.talla)+'</td><td>'+physical+'</td><td>'+pending+'</td><td>'+free+'</td><td><b>'+buy+'</b></td><td><button class="btn alt" onclick="ejEditShirtCount(\''+p.id+'\','+physical+')">Actualizar conteo</button></td></tr>';
+ }).join('');
+ const discrep=rows.filter(p=>Math.abs(Number(p.existencia)-Number(countsMap.get(p.id)?.cantidad_fisica??p.existencia))>0.001).length;
+ target.innerHTML='<div class="head"><h2>Suéteres negros · control de compras</h2><button class="btn alt" onclick="ejShirtStockPanel()">Actualizar</button></div><p>Existencia física contada en tienda frente a unidades de pedidos que siguen marcados como pendientes.</p><div class="inventory-table-wrap"><table><thead><tr><th>Talla</th><th>En tienda</th><th>Pedidos pendientes</th><th>Libres</th><th>Por comprar</th><th>Conteo</th></tr></thead><tbody>'+html+'</tbody></table></div>'+(discrep?'<p><b>Atención:</b> el conteo físico y el stock histórico del sistema no coinciden. El conteo no vuelve a descontar pedidos ni cambia movimientos anteriores.</p>':'')+'<p><small>Los pedidos se cuentan automáticamente según su estado actual. Si alguno ya está preparado, pero continúa como pendiente, puede aparecer aquí hasta actualizar su estado.</small></p>';
+}
+async function ejEditShirtCount(id,current){
+ const raw=prompt('Cantidad física que hay ahora en la tienda (sin restar pedidos pendientes):',String(current));if(raw===null)return;
+ const qty=Number(raw);if(!Number.isFinite(qty)||qty<0)return alert('Cantidad inválida.');
+ const {error}=await sb.from('ej_conteo_fisico_sueteres').upsert({producto_id:id,cantidad_fisica:qty,fecha_conteo:new Date().toISOString(),nota:'Conteo físico actualizado desde Inventario'},{onConflict:'producto_id'});
+ if(error)return alert('No se pudo guardar: '+error.message);
+ await ejShirtStockPanel();
+}
 async function inventory(){
  const [{data,error},{data:cats}]=await Promise.all([
    sb.from('productos').select('*').eq('activo',true).order('producto'),
@@ -232,7 +258,7 @@ async function inventory(){
  window._inventoryRows=data||[];window._invCategories=cats||[];
  const colors=[...INV_COLORS,...(data||[]).map(x=>x.color)];const sizes=[...INV_SIZES,...(data||[]).map(x=>x.talla)];const measures=[...(data||[]).map(x=>x.medida)];const productNames=[...(data||[]).map(x=>x.producto)];
  let rows=(data||[]).map(p=>`<tr><td data-label="Foto">${p.foto_url?`<img class="product-thumb" src="${esc(p.foto_url)}" alt="${esc(p.producto||'Producto')}" onclick="openInventoryDetail('${p.id}')">`:`<div class="photo-empty" onclick="openInventoryDetail('${p.id}')" style="cursor:pointer">Sin foto</div>`}</td><td data-label="Código">${esc(p.codigo)}</td><td data-label="Categoría">${esc(p.categoria||'—')}</td><td data-label="Producto"><button class="product-link" onclick="openInventoryDetail('${p.id}')">${esc(p.producto)}</button></td><td data-label="Existencia">${p.existencia}</td><td data-label="Costo real">${money(p.costo_unitario)}</td><td data-label="Valor">${money(p.existencia*p.costo_unitario)}</td><td data-label="Estado"><span class="badge ${p.existencia<=0?'out':p.existencia<=p.stock_minimo?'low':''}">${p.existencia<=0?'Agotado':p.existencia<=p.stock_minimo?'Stock bajo':'Disponible'}</span></td><td data-label="Acciones" style="white-space:nowrap"><button class="btn alt" onclick="editInventory('${p.id}')">Editar</button> <button class="btn alt" onclick="removeInventory('${p.id}')">Eliminar</button></td></tr>`).join('');
- content.innerHTML=`<div class="panel"><div class="head"><h2>Inventario</h2><button class="btn" onclick="toggle('pf');previewInventoryCode()">+ Nuevo producto</button></div>${searchBox('inventorySearch','inventoryTable','Buscar por fecha, código, categoría, producto, línea, color, talla o medida...')}<div id="pf" class="hidden"><div class="grid">
+ content.innerHTML=`<div id="ejShirtStockPanel" class="panel">Consultando suéteres...</div><div class="panel"><div class="head"><h2>Inventario</h2><button class="btn" onclick="toggle('pf');previewInventoryCode()">+ Nuevo producto</button></div>${searchBox('inventorySearch','inventoryTable','Buscar por fecha, código, categoría, producto, línea, color, talla o medida...')}<div id="pf" class="hidden"><div class="grid">
  <div><label>Foto del producto</label><input id="pphoto" type="file" accept="image/*"><small>Opcional. Puedes subirla desde la computadora o el celular.</small></div><div><label>Fecha de ingreso</label><input id="pdate" type="date" value="${todayISO()}"></div>
  <div><label>Código automático</label><input id="pcode" value="Selecciona una categoría" disabled><small>Se genera por categoría y no se puede editar.</small></div>
  <div><label>Categoría</label><input id="pcat" list="invCatList" placeholder="Seleccionar o escribir nueva" oninput="previewInventoryCode();syncInventoryTextile()">${invDataList('invCatList',invCategoryList().map(x=>x.nombre))}<small>Si escribes una nueva, quedará guardada para próximos productos.</small></div>
@@ -241,6 +267,7 @@ async function inventory(){
  <div><label>Color</label><input id="pcolor" list="invColorList" placeholder="Seleccionar o escribir">${invDataList('invColorList',colors)}</div>
  <div id="psizeWrap" style="display:none"><label>Talla</label><input id="psize" list="invSizeList" placeholder="Seleccionar o escribir">${invDataList('invSizeList',sizes)}<small>Solo aparece para la categoría Textil.</small></div><div><label>Medida</label><input id="pmeasure" list="invMeasureList" placeholder="Ej. 11 oz, 20 oz, A5, 500 ml, 9 × 6 cm">${invDataList('invMeasureList',measures)}<small>Opcional. Puedes escribir una medida nueva.</small></div>
  <div><label>Existencia inicial</label><input id="pqty" type="number" step="0.01"></div><div><label>Stock mínimo</label><input id="pmin" type="number" step="0.01" value="3"></div><div><label>Costo base unitario</label><input id="pcost" type="number" step="0.01"></div><div><label>ITBMS del costo</label><select id="pitbms"><option value="Incluido">Incluido en el precio</option><option value="Agregar 7%">Agregar 7%</option><option value="No aplica" selected>No aplica</option></select><small>Si eliges “Agregar 7%”, el sistema lo suma automáticamente al costo real.</small></div></div><button class="btn" onclick="addProduct()">Guardar producto</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0"></div><div id="inventoryEdit" class="hidden"></div><div class="inventory-table-wrap"><table id="inventoryTable"><thead><tr><th>Foto</th><th>Código</th><th>Categoría</th><th>Producto</th><th>Existencia</th><th>Costo real</th><th>Valor</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+ ejShirtStockPanel();
  syncInventoryTextile();
  const invCat=document.getElementById('pcat'); if(invCat){invCat.addEventListener('change',syncInventoryTextile);invCat.addEventListener('input',syncInventoryTextile);}
 }
