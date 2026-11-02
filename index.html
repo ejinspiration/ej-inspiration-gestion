@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.40</title>
+<title>EJ Inspiration | Gestión V25.41</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -422,7 +422,7 @@ async function orders(){
  window._clients=clientsData||[]; window._catalog=productsData||[]; window._orders=ordersData||[];
  const {data:inventoryData,error:inventoryError}=await sb.from('productos').select('id,producto,color,talla,existencia,costo_unitario').eq('activo',true).order('producto');
  window._ejInventory=inventoryData||[];if(inventoryError)console.warn('Inventario no disponible:',inventoryError.message);
- let rows=(ordersData||[]).map(o=>{
+ let rows=(ordersData||[]).filter(o=>o.numero!=='EJ-0030').map(o=>{
    let paid=(o.cobros||[]).reduce((s,c)=>s+Number(c.monto),0),bal=Math.max(Number(o.total)-paid,0);
    const deliveredUnpaid=o.estado==='Entregado' && bal>0.005;
    return `<tr ${deliveredUnpaid?'style="background:#fff3d9;border-left:4px solid #d99a37"':''} data-search="${esc([o.numero,o.fecha,o.telefono,o.instagram,o.clientes?.nombre,o.fecha_entrega,o.estado].join(' '))}"><td>${esc(o.numero)}</td><td>${esc(o.fecha)}</td><td>${esc(o.clientes?.nombre||"—")}</td><td>${esc(o.fecha_entrega||"—")}<br>${deliveryAlert(o.fecha_entrega,o.estado)}</td><td>${esc(o.estado)}${deliveredUnpaid?`<div style="margin-top:5px"><span style="display:inline-block;background:#f6d99b;color:#65420e;padding:5px 9px;border-radius:9px;font-weight:700;font-size:12px">Entregado · saldo pendiente</span></div>`:""}</td><td>${money(o.total)}</td><td>${deliveredUnpaid?`<b style="color:#92580b">${money(bal)}</b>`:money(bal)}</td><td><button class="btn alt" onclick="viewOrder('${o.id}')">Ver / Editar</button></td></tr>`
