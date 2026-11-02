@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.39</title>
+<title>EJ Inspiration | Gestión V25.40</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -549,7 +549,7 @@ async function saveOrder(){
  if(error){orderMsg.textContent="No se pudo guardar: "+error.message;return}
  if(odate.value!==todayISO()){
   const {error:dateError}=await sb.rpc('ej_actualizar_fecha_pedido',{p_pedido_id:data.id,p_fecha:odate.value});
-  if(dateError){orderMsg.textContent="Pedido creado, pero no se pudo ajustar su fecha: "+dateError.message;return alert("Pedido creado, pero la fecha no pudo guardarse. "+dateError.message);}
+  if(dateError){alert("El pedido "+data.numero+" SÍ se creó. No lo registres nuevamente. Solo falló el ajuste de fecha: "+dateError.message);await orders();return;}
  }
  alert(`Pedido ${data.numero} guardado correctamente.\nTotal: ${money(data.total)}\nAbono: ${money(data.abono)}\nSaldo: ${money(data.saldo)}`);
  await orders();
