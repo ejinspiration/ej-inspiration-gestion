@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.37</title>
+<title>EJ Inspiration | Gestión V25.38</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -546,7 +546,7 @@ async function saveOrder(){
  });
  if(error){orderMsg.textContent="No se pudo guardar: "+error.message;return}
  if(odate.value!==todayISO()){
-  const {error:dateError}=await sb.from('pedidos').update({fecha:odate.value}).eq('id',data.id);
+  const {error:dateError}=await sb.rpc('ej_actualizar_fecha_pedido',{p_pedido_id:data.id,p_fecha:odate.value});
   if(dateError){orderMsg.textContent="Pedido creado, pero no se pudo ajustar su fecha: "+dateError.message;return alert("Pedido creado, pero la fecha no pudo guardarse. "+dateError.message);}
  }
  alert(`Pedido ${data.numero} guardado correctamente.\nTotal: ${money(data.total)}\nAbono: ${money(data.abono)}\nSaldo: ${money(data.saldo)}`);
@@ -570,7 +570,7 @@ async function viewOrder(id){
  <div><label>Estado</label><select id="estatus">${["Pendiente","En producción","Listo","Entregado","Cancelado"].map(x=>`<option ${x===o.estado?"selected":""}>${x}</option>`).join("")}</select></div>
  </div>
  <label>Observaciones</label><input id="enotes" value="${esc(o.observaciones||"")}">
- <button class="btn" onclick="saveOrderHeader('${o.id}','${esc(o.estado)}')">Guardar cambios</button>
+ <button class="btn" onclick="saveOrderHeader('${o.id}','${esc(o.estado)}')">Guardar cambios</button> <button class="btn alt" onclick="ejRemoveOrder('${o.id}')" ${o.estado==="Cancelado"?"disabled":""}>Eliminar pedido</button>
  <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
  <div class="head"><h3>Productos / servicios</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn alt" onclick="printOrder('${o.id}')">Imprimir / PDF</button><button class="btn alt" onclick="openLinesEditor('${o.id}')">Editar productos</button></div></div>
  <div style="overflow:auto"><table><thead><tr><th>Descripción</th><th>Cant.</th><th>Precio</th><th>Personalización</th><th>Total</th></tr></thead><tbody>${details}</tbody></table></div>
@@ -700,6 +700,17 @@ function printOrder(id){
  @media print{html,body{background:#fff}.sheet{width:8.5in;min-height:11in;margin:0;box-shadow:none;padding:.48in .55in}.noprint{display:none!important}}
  </style></head><body><main class="sheet"><header class="top"><div class="brandwrap"><img class="logoimg" src="${logoSrc}" alt="EJ Inspiration"><div><div class="brandname">EJ Inspiration</div><div class="tag">Detalles personalizados para tus momentos especiales</div></div></div><div class="order"><h1>PEDIDO ${esc(o.numero)}</h1><div class="dates"><div><span>Fecha</span><b>${esc(o.fecha||'—')}</b></div>${delivery}</div></div></header>${clientRows?`<section class="client">${clientRows}</section>`:''}<table><thead><tr><th>Descripción</th><th class="num">Cant.</th><th class="num">Precio</th><th>Personalización</th><th class="num">Total</th></tr></thead><tbody>${rows}</tbody></table><div class="totals"><div><b>Total</b><b>${money(o.total)}</b></div><div><span>Abonado</span><span>${money(paid)}</span></div><div class="balance"><b>Saldo</b><b>${money(bal)}</b></div></div>${pays?`<section class="section"><div class="section-title">Pagos registrados</div><table><thead><tr><th>Fecha</th><th>Método</th><th>Referencia</th><th class="num">Monto</th></tr></thead><tbody>${pays}</tbody></table></section>`:''}${o.observaciones?`<section class="section"><div class="section-title">Observaciones</div><div class="notes">${esc(o.observaciones)}</div></section>`:''}<p class="noprint"><button onclick="window.print()">Imprimir / Guardar como PDF</button></p></main></body></html>`);w.document.close();
 }
+async function ejRemoveOrder(id){
+ const o=(window._orders||[]).find(x=>x.id===id);if(!o)return;
+ if(o.estado==='Cancelado')return alert('Este pedido ya fue cancelado.');
+ const paid=(o.cobros||[]).reduce((n,p)=>n+Number(p.monto||0),0);
+ if(paid>0)return alert('Este pedido tiene pagos registrados. Para proteger el cierre de caja no puede eliminarse sin gestionar antes los cobros o reembolsos.');
+ if(!confirm('¿Eliminar el pedido '+o.numero+'? Se marcará como cancelado, se devolverán las unidades al inventario y quedará registro para auditoría.'))return;
+ const {error}=await sb.rpc('cancelar_pedido',{p_pedido_id:id});
+ if(error)return alert('No se pudo eliminar: '+error.message);
+ alert('Pedido '+o.numero+' cancelado correctamente. Se conserva en el historial de auditoría.');
+ await orders();
+}
 async function saveOrderHeader(id,oldStatus){
  if(estatus.value==="Cancelado" && oldStatus!=="Cancelado"){
    if(!confirm("Cancelar el pedido devolverá al inventario las unidades físicas asociadas. ¿Continuar?"))return;
@@ -710,7 +721,7 @@ async function saveOrderHeader(id,oldStatus){
    if(error)return alert("No se pudo editar: "+error.message);
  }
  if(edate.value && edate.value!==String((window._orders||[]).find(x=>x.id===id)?.fecha||'').slice(0,10)){
-  const {error:dateError}=await sb.from('pedidos').update({fecha:edate.value}).eq('id',id);
+  const {error:dateError}=await sb.rpc('ej_actualizar_fecha_pedido',{p_pedido_id:id,p_fecha:edate.value});
   if(dateError)return alert("Los demás datos se actualizaron, pero la fecha del pedido no: "+dateError.message);
  }
  alert("Pedido actualizado correctamente.");await orders();
