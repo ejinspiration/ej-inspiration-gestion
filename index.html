@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.41</title>
+<title>EJ Inspiration | Gestión V25.42</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -73,7 +73,7 @@ const SUPABASE_URL='https://ntualkoalqsnumewzkmx.supabase.co';
 const SUPABASE_KEY='sb_publishable_hLqxBJokRpIJt5XoRO6Dzg_QkL5oTOP';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 let currentUser=null,currentProfile=null;
-const modules=["Inicio","Clientes","Proveedores","Catálogo de productos","Inventario","Pedidos","Cotizaciones","Cobros","Compras y Gastos","Caja y Bancos","Ajustes","Calculadora de precios","Reportes"];
+const modules=["Inicio","Clientes","Proveedores","Catálogo de productos","Inventario","Pedidos","Cotizaciones","Cobros","Compras y Gastos","Caja y Bancos","Ajustes","Calculadora de precios","Cierres mensuales","Reportes"];
 
 function money(n){return "$"+Number(n||0).toFixed(2)}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]))}
@@ -103,7 +103,7 @@ async function signOut(){await sb.auth.signOut();currentUser=null;currentProfile
 async function show(m){
  title.textContent=m;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.textContent===m));
  content.innerHTML='<div class="panel">Cargando...</div>';
- if(m==="Inicio")return dashboard();if(m==="Clientes")return clients();if(m==="Proveedores")return suppliers();if(m==="Catálogo de productos")return catalog();if(m==="Inventario")return inventory();if(m==="Pedidos")return orders();if(m==="Cotizaciones")return quotations();if(m==="Cobros")return payments();if(m==="Compras y Gastos")return purchasesExpenses();if(m==="Caja y Bancos")return cashBanks();if(m==="Ajustes")return adjustments();if(m==="Calculadora de precios")return priceCalculator();if(m==="Reportes")return reports();
+ if(m==="Inicio")return dashboard();if(m==="Clientes")return clients();if(m==="Proveedores")return suppliers();if(m==="Catálogo de productos")return catalog();if(m==="Inventario")return inventory();if(m==="Pedidos")return orders();if(m==="Cotizaciones")return quotations();if(m==="Cobros")return payments();if(m==="Compras y Gastos")return purchasesExpenses();if(m==="Caja y Bancos")return cashBanks();if(m==="Ajustes")return adjustments();if(m==="Calculadora de precios")return priceCalculator();if(m==="Cierres mensuales")return cierresMensuales();if(m==="Reportes")return reports();
  content.innerHTML=`<div class="panel"><h2>${m}</h2><p style="color:var(--muted)">Este módulo se conectará en la siguiente fase. La base online ya está preparada.</p></div>`;
 }
 async function dashboard(){
@@ -1285,6 +1285,43 @@ function printReport(){let d=reportState.data;if(!d)return;let w=window.open('',
 @media(max-width:1100px) and (min-width:801px){main{padding:20px 16px}.app{grid-template-columns:205px minmax(0,1fr)}#inventoryTable{font-size:10px}#inventoryTable th,#inventoryTable td{padding:6px 3px}#inventoryTable th{font-size:8px}.product-thumb,.photo-empty{width:38px!important;height:38px!important}}
 @media(max-width:800px){.inventory-table-wrap{overflow:visible!important}#inventoryTable{display:block;min-width:0!important;width:100%;font-size:13px}#inventoryTable thead{display:none}#inventoryTable tbody{display:grid;grid-template-columns:1fr;gap:12px}#inventoryTable tr{display:grid!important;grid-template-columns:72px minmax(0,1fr) minmax(0,1fr);gap:8px 10px;padding:12px;border:1px solid var(--line);border-radius:14px;background:#fffdf9;box-shadow:0 2px 8px #5d43220a}#inventoryTable td{display:block;border:0;padding:0;min-width:0;font-size:13px;overflow-wrap:anywhere}#inventoryTable td::before{content:attr(data-label);display:block;font-size:9px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:3px}#inventoryTable td:nth-child(1){grid-row:1 / span 2;grid-column:1;align-self:start}#inventoryTable td:nth-child(1)::before{display:none}#inventoryTable td:nth-child(1) .product-thumb,#inventoryTable td:nth-child(1) .photo-empty{width:68px!important;height:68px!important}#inventoryTable td:nth-child(5){grid-column:2 / 4;font-weight:700;font-size:15px}#inventoryTable td:nth-child(17){grid-column:1 / 4;display:flex;gap:8px;margin-top:4px}#inventoryTable td:nth-child(17)::before{display:none}#inventoryTable td:nth-child(17) .btn{width:50%;min-height:40px;font-size:13px}#inventoryTable td:nth-child(2),#inventoryTable td:nth-child(4),#inventoryTable td:nth-child(13){display:none}}
 </style></head><body><h1>EJ Inspiration</h1><h2>Reporte de gestión</h2><p>${d.from} al ${d.to}</p><div class="k"><div class="c">Ventas<br><b>${money(d.sales)}</b></div><div class="c">Cobrado<br><b>${money(d.collected)}</b></div><div class="c">Por cobrar<br><b>${money(d.receivable)}</b></div></div><table><tr><td>Ventas</td><td>${money(d.sales)}</td></tr><tr><td>− Costo mercancía vendida</td><td>${money(d.cogs)}</td></tr><tr><td>− Costos directos</td><td>${money(d.direct)}</td></tr><tr><td><b>Utilidad bruta estimada</b></td><td><b>${money(d.gross)}</b></td></tr><tr><td>− Gastos operativos</td><td>${money(d.oper)}</td></tr><tr><td><b>Utilidad estimada</b></td><td><b>${money(d.profit)}</b></td></tr></table><p>Compras para inventario del período: <b>${money(d.invPurch)}</b></p><p>Valor actual del inventario: <b>${money(d.invValue)}</b></p><button onclick="window.print()">Imprimir / Guardar como PDF</button></body></html>`);w.document.close()}
+
+
+async function cierresMensuales(){
+ content.innerHTML='<div class="panel"><h2>Cierres mensuales</h2><p>Cargando liquidaciones...</p></div>';
+ const {data,error}=await sb.from('cierres_mensuales').select('*').order('periodo',{ascending:false});
+ if(error){content.innerHTML='<div class="panel">No se pudieron cargar los cierres: '+esc(error.message)+'</div>';return}
+ let rows=(data||[]).map(x=>{
+ const pendienteS=Math.max(0,Number(x.stephany_efectivo)-Number(x.pagado_stephany)),pendienteI=Math.max(0,Number(x.ilianis_efectivo)-Number(x.pagado_ilianis));
+ return `<div class="panel" style="margin-bottom:18px"><h2>${esc(x.periodo)} · ${esc(x.estado)}</h2>
+ <p style="color:var(--muted)">Liquidación del período. Los cobros asignados no se marcan pagados hasta recibirlos.</p>
+ <div style="overflow-x:auto"><table style="width:100%"><tbody>
+ <tr><td>Ventas del mes</td><td style="text-align:right">${money(x.ventas)}</td></tr>
+ <tr><td>Cobrado de pedidos del mes</td><td style="text-align:right">${money(x.cobrado)}</td></tr>
+ <tr><td>Cuentas por cobrar</td><td style="text-align:right">${money(x.por_cobrar)}</td></tr>
+ <tr><td>Facturas, compras y gastos</td><td style="text-align:right">${money(x.facturas)}</td></tr>
+ <tr><td>De ellas, pagadas con fondos de EJ</td><td style="text-align:right">${money(x.gastos_fondos_ej)}</td></tr>
+ <tr><td>Reembolso a Stephany (incluido en facturas)</td><td style="text-align:right">${money(x.reembolso_stephany)}</td></tr>
+ <tr><td>Comisiones de cobro estimadas</td><td style="text-align:right">${money(x.comisiones)}</td></tr>
+ <tr><td><b>Resultado repartible aprobado</b></td><td style="text-align:right"><b>${money(x.utilidad)}</b></td></tr>
+ </tbody></table></div>
+ <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:14px 0">
+ <div style="padding:14px;background:#f6f1e8;border-radius:12px"><b>Stephany · 60%</b><p>Por entregar: <b>${money(x.stephany_efectivo)}</b></p><p>Entregado: ${money(x.pagado_stephany)}</p><p><b>Saldo: ${money(pendienteS)}</b></p><p>Cobros de clientes asignados: ${money(x.por_cobrar_stephany)}</p>${pendienteS>0?'<button class="btn" onclick="registrarPagoCierre(\''+x.periodo+'\',\'Stephany\','+pendienteS+')">Registrar entrega a Stephany</button>':''}</div>
+ <div style="padding:14px;background:#f6f1e8;border-radius:12px"><b>Ilianis · 40%</b><p>Por entregar: <b>${money(x.ilianis_efectivo)}</b></p><p>Entregado: ${money(x.pagado_ilianis)}</p><p><b>Saldo: ${money(pendienteI)}</b></p>${pendienteI>0?'<button class="btn" onclick="registrarPagoCierre(\''+x.periodo+'\',\'Ilianis\','+pendienteI+')">Registrar entrega a Ilianis</button>':''}</div>
+ </div><p style="color:var(--muted)">${esc(x.observaciones||'')}</p></div>`;
+ }).join('');
+ content.innerHTML='<div class="panel"><h2>Cierres mensuales</h2><p>Historial de liquidaciones aprobadas. Los importes entregados se registran únicamente cuando se realiza el pago.</p></div>'+(rows||'<div class="panel">Aún no hay cierres aprobados.</div>')+'<div class="panel"><h3>Próximos meses</h3><p>Las ventas, cobros, facturas y cuentas por cobrar continúan registrándose en sus módulos habituales. El cierre de cada mes se revisará y aprobará antes de registrar repartos.</p></div>';
+}
+async function registrarPagoCierre(periodo,persona,maximo){
+ const input=prompt('Monto efectivamente entregado a '+persona+' (máximo '+money(maximo)+'):',Number(maximo).toFixed(2));
+ if(input===null)return;
+ const monto=Number(String(input).replace(',','.'));
+ if(!Number.isFinite(monto)||monto<=0||monto>maximo){alert('Ingresa un importe válido que no supere el saldo.');return}
+ if(!confirm('¿Confirmas que YA entregaste '+money(monto)+' a '+persona+'? Esta operación quedará en auditoría.'))return;
+ const {error}=await sb.rpc('ej_registrar_pago_cierre',{p_periodo:periodo,p_persona:persona,p_monto:monto});
+ if(error){alert('No se pudo registrar: '+error.message);return}
+ alert('Entrega registrada correctamente.');await cierresMensuales();
+}
 
 function toggle(id){document.getElementById(id).classList.toggle("hidden")}
 (async()=>{const {data}=await sb.auth.getSession();if(data.session)await enterApp(data.session.user)})();
