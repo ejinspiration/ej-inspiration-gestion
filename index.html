@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#f6f1e8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="EJ Gestión">
-<title>EJ Inspiration | Gestión V25.36</title>
+<title>EJ Inspiration | Gestión V25.37</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f6f1e8;--card:#fffdf9;--ink:#34291f;--brown:#563827;--muted:#8b7b6c;--line:#e6d9c8;--cream:#eadfce;--bad:#f2d2d0;--warn:#f5e5ad;--ok:#dcebd7}
@@ -436,7 +436,7 @@ function newOrder(){
  let products=(window._catalog||[]).filter(p=>ejInventoryForCollection(p.id)||!p.controla_inventario||Number(p.productos?.existencia)>0).map(p=>`<option value="${p.id}">${esc(p.codigo||"")} · ${esc(p.nombre)}${ejInventoryForCollection(p.id)?' · seleccionar talla y color':p.controla_inventario?` · stock ${p.productos?.existencia??0}`:' · servicio'}</option>`).join("");
  orderForm.classList.remove("hidden");
  orderForm.innerHTML=`<div class="grid">
- <div><label>Fecha del pedido</label><input value="${todayISO()}" readonly style="background:#f2eee7"></div><div><label>Cliente / Razón social <span style="font-weight:400;color:var(--muted)">(existente o nuevo)</span></label><input id="oname" list="oClientList" placeholder="Escribe el nombre o selecciona un cliente" oninput="fillClient()" autocomplete="off"><datalist id="oClientList">${(window._clients||[]).map(c=>`<option value="${esc(c.nombre)}"></option>`).join("")}</datalist><input id="oclient" type="hidden"></div>
+ <div><label>Fecha del pedido</label><input id="odate" type="date" value="${todayISO()}"><small>Indica la fecha real en que el cliente realizó el pedido.</small></div><div><label>Cliente / Razón social <span style="font-weight:400;color:var(--muted)">(existente o nuevo)</span></label><input id="oname" list="oClientList" placeholder="Escribe el nombre o selecciona un cliente" oninput="fillClient()" autocomplete="off"><datalist id="oClientList">${(window._clients||[]).map(c=>`<option value="${esc(c.nombre)}"></option>`).join("")}</datalist><input id="oclient" type="hidden"></div>
  <div><label>Fecha de entrega</label><input id="odelivery" type="date"></div>
  <div><label>Cédula / RUC</label><input id="oruc"></div><div><label>Teléfono</label><input id="ophone"></div><div><label>Instagram</label><input id="oig"></div>
  <div><label>Canal de venta</label><select id="ochannel"><option>WhatsApp</option><option>Instagram</option><option>Tienda</option><option>Otro</option></select></div>
@@ -535,7 +535,7 @@ async function saveManualCatalogItems(lines){
  }
 }
 async function saveOrder(){
- if(!oname.value.trim())return alert("Escribe o selecciona el cliente."); if(!odelivery.value)return alert("Indica la fecha de entrega."); if(!orderLines.length)return alert("Agrega al menos un producto.");
+ if(!oname.value.trim())return alert("Escribe o selecciona el cliente."); if(!odate.value)return alert("Indica la fecha del pedido."); if(!odelivery.value)return alert("Indica la fecha de entrega."); if(!orderLines.length)return alert("Agrega al menos un producto.");
  let dep=Number(odeposit.value||0);if(dep>0&&!opay.value)return alert("Selecciona el método de pago.");
  orderMsg.textContent="Guardando pedido...";
  let clientId;try{clientId=await resolveOrderClient();await saveManualCatalogItems(orderLines)}catch(e){orderMsg.textContent="";return alert("No se pudo guardar: "+e.message)}
@@ -545,6 +545,10 @@ async function saveOrder(){
    p_detalles:orderLines.map(({stock,controla_inventario,guardar_catalogo,...x})=>x),p_abono:dep,p_metodo_pago:opay.value||null,p_referencia_pago:oref.value||null
  });
  if(error){orderMsg.textContent="No se pudo guardar: "+error.message;return}
+ if(odate.value!==todayISO()){
+  const {error:dateError}=await sb.from('pedidos').update({fecha:odate.value}).eq('id',data.id);
+  if(dateError){orderMsg.textContent="Pedido creado, pero no se pudo ajustar su fecha: "+dateError.message;return alert("Pedido creado, pero la fecha no pudo guardarse. "+dateError.message);}
+ }
  alert(`Pedido ${data.numero} guardado correctamente.\nTotal: ${money(data.total)}\nAbono: ${money(data.abono)}\nSaldo: ${money(data.saldo)}`);
  await orders();
 }
@@ -558,7 +562,7 @@ async function viewOrder(id){
  orderForm.classList.remove("hidden");
  orderForm.innerHTML=`<div class="head"><h2>${esc(o.numero)}</h2><span class="badge">${bal<=0?"Pagado":"Saldo "+money(bal)}</span></div>
  <div class="grid">
- <div><label>Cliente</label><select id="eclient">${clients}</select></div>
+ <div><label>Fecha del pedido</label><input id="edate" type="date" value="${esc(o.fecha||"")}"></div><div><label>Cliente</label><select id="eclient">${clients}</select></div>
  <div><label>Fecha de entrega</label><input id="edelivery" type="date" value="${esc(o.fecha_entrega||"")}"></div>
  <div><label>Teléfono</label><input id="ephone" value="${esc(o.telefono||"")}"></div>
  <div><label>Instagram</label><input id="eig" value="${esc(o.instagram||"")}"></div>
@@ -704,6 +708,10 @@ async function saveOrderHeader(id,oldStatus){
  } else {
    const {error}=await sb.rpc("editar_pedido_datos",{p_pedido_id:id,p_cliente_id:eclient.value,p_telefono:ephone.value,p_instagram:eig.value,p_fecha_entrega:edelivery.value||null,p_canal_venta:echannel.value,p_observaciones:enotes.value,p_estado:estatus.value});
    if(error)return alert("No se pudo editar: "+error.message);
+ }
+ if(edate.value && edate.value!==String((window._orders||[]).find(x=>x.id===id)?.fecha||'').slice(0,10)){
+  const {error:dateError}=await sb.from('pedidos').update({fecha:edate.value}).eq('id',id);
+  if(dateError)return alert("Los demás datos se actualizaron, pero la fecha del pedido no: "+dateError.message);
  }
  alert("Pedido actualizado correctamente.");await orders();
 }
